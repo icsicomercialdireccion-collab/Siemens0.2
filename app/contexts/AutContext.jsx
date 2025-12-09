@@ -46,30 +46,32 @@ export const AuthProvider = ({ children }) => {
 
   // Cargar datos adicionales del usuario desde Firestore
   const loadUserData = async (userId) => {
-    try {
-      const userDocRef = doc(db, 'users', userId);
-      const userDoc = await getDoc(userDocRef);
+  try {
+    const userDocRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userDocRef);
+    
+    if (userDoc.exists()) {
+      setUserData(userDoc.data());
+    } else {
+      // OBTENER EL USER ACTUAL DE AUTH
+      const currentUser = auth.currentUser;
       
-      if (userDoc.exists()) {
-        setUserData(userDoc.data());
-      } else {
-        // Si no existe el documento, crearlo con datos básicos
-        const defaultUserData = {
-          uid: userId,
-          email: user.email,
-          displayName: user.displayName || '',
-          createdAt: new Date().toISOString(),
-          role: 'user',
-          active: true
-        };
-        
-        await setDoc(userDocRef, defaultUserData);
-        setUserData(defaultUserData);
-      }
-    } catch (error) {
-      console.error('Error cargando datos del usuario:', error);
+      const defaultUserData = {
+        uid: userId,
+        email: currentUser?.email || '',
+        displayName: currentUser?.displayName || '',
+        createdAt: new Date().toISOString(),
+        role: 'user',
+        active: true
+      };
+      
+      await setDoc(userDocRef, defaultUserData);
+      setUserData(defaultUserData);
     }
-  };
+  } catch (error) {
+    console.error('Error cargando datos del usuario:', error);
+  }
+};
 
   // Función para iniciar sesión
   const login = async (email, password) => {
@@ -120,9 +122,15 @@ export const AuthProvider = ({ children }) => {
 
   // Función para registrar usuario
   const register = async (email, password, displayName = '') => {
+    
+    console.log(" Registrando usuario:", email);
+    
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
+
+      console.log("📝 Creando usuario en Firebase...");
+      console.log("✅ Usuario creado:", userCredential.user.uid);
       
       // Actualizar perfil con displayName si se proporciona
       if (displayName) {
@@ -152,10 +160,12 @@ export const AuthProvider = ({ children }) => {
       return { 
         success: true, 
         user: firebaseUser,
-        message: 'Cuenta creada exitosamente'
+        message: 'Cuenta creada exitosamente',
       };
     } catch (error) {
       let errorMessage = 'Error al crear cuenta';
+      console.error("❌ Error Firebase:", error.code, error.message);
+
       
       switch (error.code) {
         case 'auth/email-already-in-use':
