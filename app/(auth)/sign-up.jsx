@@ -5,7 +5,7 @@ import { useState } from "react"
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
 import { authStyles } from "../../assets/styles/auth.styles"
 import { COLORS } from '../../constants/colors'
-import { useAuth } from '../context/authContext'; // Cambiamos a nuestro AuthContext
+import { useAuth } from "../contexts/AutContext.jsx"; // Cambiamos a nuestro AuthContext
 
 const SignUpScreen = () => {
   const router = useRouter()
@@ -22,6 +22,9 @@ const SignUpScreen = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSignUp = async () => {
+  console.log("Iniciando registro...");
+  console.log("Email:", email);
+  console.log("🔑 Password:", password);
     // Validaciones
     if (!email || !password || !confirmPassword) {
       Alert.alert("Error", "Por favor completa todos los campos")
@@ -46,7 +49,9 @@ const SignUpScreen = () => {
     setIsSubmitting(true)
 
     try {
-      const result = await register(email, password, userName)
+      const result = await register(email, password, userName);
+      
+      console.log("✅ Resultado del registro:", result); // Agrega esto
       
       if (result.success) {
         Alert.alert(
@@ -55,20 +60,25 @@ const SignUpScreen = () => {
           [
             { 
               text: "OK", 
-              onPress: () => router.replace("/(auth)/sign-in") 
+              onPress: () => router.replace("/(auth)/login") 
             }
           ]
-        )
+        );
       } else {
-        Alert.alert("Error", result.error || "Error al crear la cuenta")
+        // Muestra el error específico
+        console.log(" Error del registro:", result.error, result.code);
+        Alert.alert(
+          "Error", 
+          result.error || "Error al crear la cuenta"
+        );
       }
     } catch (error) {
-      Alert.alert("Error", "Error inesperado: " + error.message)
-      console.error("Sign up error:", error)
+      console.error(" Error catch:", error);
+      Alert.alert("Error", "Error inesperado: " + error.message);
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   // Función para validar email
   const validateEmail = (email) => {
@@ -209,6 +219,7 @@ const SignUpScreen = () => {
               style={[
                 authStyles.authButton, 
                 isLoading && authStyles.buttonDisabled
+                
               ]}
               onPress={handleSignUp}
               disabled={isLoading}

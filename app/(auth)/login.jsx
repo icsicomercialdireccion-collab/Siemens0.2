@@ -15,7 +15,7 @@ import {
 } from 'react-native'
 import { authStyles } from '../../assets/styles/auth.styles'
 import { COLORS } from '../../constants/colors'
-import { useAuth } from '../context/authContext'; // Cambiamos de Clerk a nuestro AuthContext
+import { useAuth } from '../contexts/AutContext'; // Cambiamos de Clerk a nuestro AuthContext
 
 const SignInScreen = () => {
   const router = useRouter()
@@ -33,7 +33,7 @@ const SignInScreen = () => {
       Alert.alert("Error", "Por favor ingresa email y contraseña")
       return
     }
-
+    router.replace("/(tabs)/home");
     setIsSubmitting(true)
 
     try {
@@ -129,6 +129,7 @@ const SignInScreen = () => {
               onPress={handleSignIn}
               disabled={isLoading}
               activeOpacity={0.8}
+              
             >
               {isLoading ? (
                 <ActivityIndicator color="#fff" size="small" />
