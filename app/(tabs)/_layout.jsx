@@ -1,22 +1,33 @@
 // (tabs)/_layout.jsx
-import { Redirect, Stack } from 'expo-router';
-import { ActivityIndicator, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Redirect, Tabs } from 'expo-router';
 import { useAuth } from '../contexts/AutContext';
 
-export default function TabsLayout() {
-  const { user, loading } = useAuth();
+const TabsLayout = () =>{
 
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
+  const { user, loading, } = useAuth();
+  
+  if (!user) return <Redirect href={"/(auth)/login"}/>
 
-  if (!user) {
-    return <Redirect href="/(auth)/login" />;
-  }
-
-  return <Stack />;
+return (
+<Tabs screenOptions={{ headerShown: false }}>
+  <Tabs.Screen
+    name='perfil'
+    options={{
+      title:"Perfil",
+      tabBarIcon: ({color, size}) => <Ionicons name="person" size={size} color={color}/>
+    }}
+  />
+  <Tabs.Screen
+    name='home'
+    options={{
+      title:"Inventarios",
+      tabBarIcon: ({color, size}) => <Ionicons name="file-tray" size={size} color={color}/>
+    }}
+  />
+  
+</Tabs>
+)
 }
+
+export default TabsLayout;

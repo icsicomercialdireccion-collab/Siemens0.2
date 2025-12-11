@@ -47,13 +47,23 @@ export const AuthProvider = ({ children }) => {
   // Cargar datos adicionales del usuario desde Firestore
   const loadUserData = async (userId) => {
   try {
+    console.log("🔍 Loading user data for:", userId);
+
     const userDocRef = doc(db, 'users', userId);
     const userDoc = await getDoc(userDocRef);
+
+    console.log("📄 Document exists?", userDoc.exists());
+    console.log("📊 Document data:", userDoc.data());
     
     if (userDoc.exists()) {
-      setUserData(userDoc.data());
+      const data = userDoc.data();
+      console.log("🎭 User role from Firestore:", data.role);
+      setUserData(data);
+    
     } else {
       // OBTENER EL USER ACTUAL DE AUTH
+      console.log("⚠️ No document, creating default...");
+
       const currentUser = auth.currentUser;
       
       const defaultUserData = {
