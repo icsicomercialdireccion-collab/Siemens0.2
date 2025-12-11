@@ -2,17 +2,7 @@ import { Ionicons } from "@expo/vector-icons"
 import { Image } from 'expo-image'
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
-} from 'react-native'
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
 import { authStyles } from '../../assets/styles/auth.styles'
 import { COLORS } from '../../constants/colors'
 import { useAuth } from '../contexts/AutContext'; // Cambiamos de Clerk a nuestro AuthContext
@@ -21,7 +11,7 @@ const SignInScreen = () => {
   const router = useRouter()
   
   // Cambiamos de Clerk a Firebase Auth
-  const { login, loading: authLoading } = useAuth() // loading del contexto
+  const { login, loading: authLoading, userData } = useAuth() // loading del contexto
   
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("") // Cambié el nombre de setpassword a setPassword
@@ -33,9 +23,17 @@ const SignInScreen = () => {
       Alert.alert("Error", "Por favor ingresa email y contraseña")
       return
     }
-    router.replace("/(tabs)/home");
+    
     setIsSubmitting(true)
 
+    setTimeout(() => {
+        if (userData?.role === 'admin') {
+          router.replace("/(tabs-admin)/home");
+        } else {
+          router.replace("/(tabs)/home");
+        }
+      }, 100);
+    
     try {
       const result = await login(email, password)
       
@@ -43,7 +41,9 @@ const SignInScreen = () => {
         // El usuario será redirigido automáticamente por el AuthContext
         // No necesitamos hacer router.replace aquí
         Alert.alert("Éxito", "Inicio de sesión exitoso")
-      } else {
+      } 
+      
+      else {
         Alert.alert("Error", result.error || "Error al iniciar sesión")
       }
     } catch (error) {
