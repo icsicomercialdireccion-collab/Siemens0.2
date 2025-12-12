@@ -1,39 +1,14 @@
-import { Ionicons } from '@expo/vector-icons'
-import React from 'react'
-import { StyleSheet, Text, TouchableOpacity } from 'react-native'
+import { Ionicons } from '@expo/vector-icons';
+import React from 'react';
+import { Text, TouchableOpacity } from 'react-native';
+import { buttomAddInventory } from '../../assets/styles/buttoms.style';
 
-const buttomInventoryG = () => {
+export default function ButtomInventoryG({ onPress, label = "Agregar Inventario" }){
   return (
-    <TouchableOpacity style={styles.floatingButton}>
+    <TouchableOpacity style={buttomAddInventory.floatingButton}   onPress={onPress}
+      activeOpacity={0.8}>
         <Ionicons name="add" size={28} color="white" />
-        <Text style={styles.floatingButtonText}>Agregar Inventario</Text>
+        <Text style={buttomAddInventory.floatingButtonText}>Nuevo Inventario</Text>
       </TouchableOpacity>
   )
 }
-
-const styles = StyleSheet.create({
-    floatingButton: {
-    position: 'absolute',
-    bottom: 20,
-    alignSelf: 'center',
-    backgroundColor: '#007AFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderRadius: 30,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  floatingButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-})
-
-export default buttomInventoryG
