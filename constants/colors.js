@@ -94,6 +94,7 @@ const icsiTheme = {
   textLight: "#D95F5F",
   card: "#FFFFFF",
   shadow: "#D91A1A",
+  titleform: "#494646ff"
 };
 
 export const THEMES = {
