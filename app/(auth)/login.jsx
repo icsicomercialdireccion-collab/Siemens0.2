@@ -144,7 +144,7 @@ const SignInScreen = () => {
               onPress={() => router.push("/(auth)/sign-up")}
               disabled={isLoading}
             > 
-              <Text style={authStyles.link}>Regístrate  </Text> 
+              <Text style={authStyles.link}>Regístrate</Text> 
             </TouchableOpacity>
 
             {/* BOTON RECUPERAR CONTRASEÑA (OPCIONAL) */}
@@ -154,8 +154,7 @@ const SignInScreen = () => {
               disabled={isLoading}
             >
               <Text style={[authStyles.link, { fontSize: 14}]}>
-                ¿Olvidaste tu contraseña? 
-              </Text> 
+                ¿Olvidaste tu contraseña?</Text> 
             </TouchableOpacity>
           </View>
         </ScrollView>

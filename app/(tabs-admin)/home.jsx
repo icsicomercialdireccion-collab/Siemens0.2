@@ -61,9 +61,9 @@ const HomeScreenAdmin = () => {
         contentContainerStyle={{ padding: 12 }}
         showsVerticalScrollIndicator={false}
         initialNumToRender={10} // Solo renderiza 10 al inicio
-  maxToRenderPerBatch={10} // Renderiza en lotes de 10
-  windowSize={5} // Mantiene 5 "pantallas" en memoria
-  removeClippedSubviews={true} // Elimina componentes no visibles
+        maxToRenderPerBatch={10} // Renderiza en lotes de 10
+        windowSize={5} // Mantiene 5 "pantallas" en memoria
+        removeClippedSubviews={true} // Elimina componentes no visibles
       />
       <ButtomInventoryG
         onPress={() => router.push("/(forms)/formInventory")}
