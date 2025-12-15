@@ -1,16 +1,33 @@
 // (tabs)/_layout.jsx
 import { Ionicons } from '@expo/vector-icons';
-import { Redirect, Tabs } from 'expo-router';
+import { Tabs } from 'expo-router';
+import { COLORS } from '../../constants/colors';
 import { useAuth } from '../contexts/AutContext';
+
 
 const TabsLayout = () =>{
 
   const { user, loading, } = useAuth();
   
-  if (!user) return <Redirect href={"/(auth)/login"}/>
-
-return (
-<Tabs screenOptions={{ headerShown: false }}>
+  return (
+  <Tabs screenOptions={{ 
+    headerShown: false,
+    tabBarActiveTintColor: COLORS.primary,
+    tabBarInactiveTintColor: COLORS.textLight,
+    tabBarStyle: {
+      backgroundColor: COLORS.white,
+      borderTopColor: COLORS.border,
+      borderTopWidth: 1,
+      paddingBottom: 8,
+      paddingTop: 8,
+      height: 80
+    },
+    tabBarLabelStyle:{
+      fontSize: 12,
+      fontWeight: "600"
+    }
+      
+  }}>
   <Tabs.Screen
     name='perfil'
     options={{
@@ -23,11 +40,9 @@ return (
     options={{
       title:"Inventarios",
       tabBarIcon: ({color, size}) => <Ionicons name="file-tray" size={size} color={color}/>
-    }}
-  />
-  
-</Tabs>
-)
+    }}/>
+  </Tabs>
+  )
 }
 
 export default TabsLayout;
