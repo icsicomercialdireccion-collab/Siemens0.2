@@ -8,6 +8,7 @@ const InventoryContext = createContext({});
 export const useInventory = () => useContext(InventoryContext);
 
 export const InventoryProvider = ({ children }) => {
+
   const [loading, setLoading] = useState(false);
   const [userInventories, setUserInventories] = useState([]);
   const [allInventories, setAllInventories] = useState([]);
