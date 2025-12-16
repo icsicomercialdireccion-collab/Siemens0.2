@@ -4,7 +4,7 @@ export default function AuthLayout() {
   const isAuthenticated = false; // Cambia a true/false según tu lógica
   
   if (isAuthenticated) {
-    return <Redirect href="/" />;
+    return <Redirect href="/home" />;
   }
   
   return <Stack screenOptions={{ headerShown: false }} />;
