@@ -1,10 +1,20 @@
 // components/InventoryCard.jsx
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useRouter } from 'expo-router';
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { cardStyle } from '../../assets/styles/card.inventory';
 
 const InventoryCard = ({ inventory, onPressDetails }) => {
+
+  //Router
+  const router = useRouter();
+
+  const handleDetailsPress = () => {
+    // Navegar a DetailsScreen con el ID
+    router.push(`/(details)/${inventory.id}`);
+  };
+
   // Formatear fecha de actualización
   const formatDate = (timestamp) => {
     if (!timestamp || !timestamp.toDate) return 'Sin fecha';
@@ -42,7 +52,7 @@ const InventoryCard = ({ inventory, onPressDetails }) => {
       {/* BOTÓN DETALLES */}
       <TouchableOpacity 
         style={cardStyle.detailsButton}
-        onPress={() => onPressDetails && onPressDetails(inventory)}
+        onPress={handleDetailsPress}
       >
         <Text style={cardStyle.detailsButtonText}>DETALLES</Text>
       </TouchableOpacity>

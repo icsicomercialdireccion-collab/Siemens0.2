@@ -4,6 +4,7 @@ import { ActivityIndicator, Text, View } from 'react-native';
 import { COLORS } from '../constants/colors';
 import SafeScreen from './components/safeScreen';
 import { AuthProvider, useAuth } from './contexts/AutContext';
+import { EquipmentProvider } from './contexts/EquipmentContext';
 import { InventoryProvider } from './contexts/InventoryContext';
 
 function AuthHandler() {
@@ -69,9 +70,11 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <InventoryProvider>
-        <SafeScreen style={{flex: 1, backgroundColor: COLORS.background}}>
-          <AuthHandler />
-        </SafeScreen>
+        <EquipmentProvider>
+          <SafeScreen style={{flex: 1, backgroundColor: COLORS.background}}>
+            <AuthHandler />
+          </SafeScreen>
+        </EquipmentProvider>
       </InventoryProvider>
     </AuthProvider>
   );
