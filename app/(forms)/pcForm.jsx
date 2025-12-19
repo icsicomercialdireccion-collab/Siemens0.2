@@ -1,4 +1,4 @@
-// app/(forms)/pcForm.jsx - VERSIÓN CORREGIDA Y SIMPLIFICADA
+// app/(forms)/pcForm.jsx - VERSIÓN SOLO CORRECCIONES FIREBASE
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import * as ImagePicker from "expo-image-picker";
@@ -21,35 +21,247 @@ import { formEquipmentStyle } from "../../assets/styles/formEquitpment.style";
 import { COLORS } from "../../constants/colors";
 import { useEquipment } from "../contexts/EquipmentContext";
 
-// ✅ IMPORTACIÓN CORRECTA PARA SDK 54
+// ✅ MANTENER TUS IMPORTACIONES DE CÁMARA INTACTAS
 import { CameraView, useCameraPermissions } from 'expo-camera';
+
+// ✅ Importación para upload de imágenes a Firebase
+import { getAuth } from "firebase/auth";
+import { doc, getDoc, getFirestore } from "firebase/firestore";
+import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
+import { app } from "../../firebase/FirebaseConfig";
 
 export default function PcForm() {
   const { inventoryId } = useLocalSearchParams();
   const router = useRouter();
-  const { createEquipment, loading } = useEquipment();
+  const { createEquipment, updateEquipment,loading: contextLoading } = useEquipment(); // ✅ Renombrar para evitar conflicto
 
   const { width: screenWidth } = useWindowDimensions();
 
-  // ✅ HOOK DE PERMISOS (SDK 54+)
+  // ✅ AÑADE ESTOS PARA DIAGNÓSTICO:
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // Función de diagnóstico
+  const checkPermissions = async () => {
+    console.log("=== 🔍 DIAGNÓSTICO DE PERMISOS ===");
+    
+    // 1. Verificar usuario
+    console.log("1. 🔐 USUARIO:");
+    console.log("   - Autenticado?:", auth.currentUser !== null);
+    console.log("   - UID:", auth.currentUser?.uid);
+    console.log("   - Email:", auth.currentUser?.email);
+    
+    // 2. Verificar inventario
+    if (inventoryId) {
+      console.log("2. 📋 INVENTARIO:", inventoryId);
+      try {
+        const inventarioRef = doc(db, 'inventarios', inventoryId);
+        const inventarioSnap = await getDoc(inventarioRef);
+        
+        if (inventarioSnap.exists()) {
+          const data = inventarioSnap.data();
+          console.log("   - Existe?: ✅ SÍ");
+          console.log("   - CreadoPor:", data.creadoPor);
+          console.log("   - Coincide con usuario?:", data.creadoPor === auth.currentUser?.uid);
+        } else {
+          console.log("   - Existe?: ❌ NO");
+        }
+      } catch (error) {
+        console.log("   - Error al verificar:", error.message);
+      }
+    }
+    
+    // 3. Verificar Storage
+    console.log("3. 📦 STORAGE CONFIG:");
+    console.log("   - Configurado?:", storage !== null);
+    console.log("   - Bucket:", storage._bucket || "No disponible");
+    
+    console.log("=== FIN DIAGNÓSTICO ===");
+  };
+//--------------------------------------------------------------------------------------------------------------------------------------------------
+
+  // ✅ MANTENER TUS HOOKS DE CÁMARA INTACTOS
   const [permission, requestPermission] = useCameraPermissions();
 
-  // Estados del formulario
+  // Estados del formulario - CORREGIDO para coincidir con tu contexto
   const [formData, setFormData] = useState({
     serial: "",
-    notas: "nuevo",
+    estado: "nuevo", // ✅ CAMBIADO: "estado" en lugar de "notas"
     imagen: null,
     observaciones: "",
   });
 
-  // Estados del scanner
   const [showScanner, setShowScanner] = useState(false);
   const [scanned, setScanned] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false); // ✅ Nuevo estado
+  const [localLoading, setLocalLoading] = useState(false); // ✅ Loading local
 
   const cameraRef = useRef(null);
+  const storage = getStorage(app); // ✅ Inicializar storage
 
-  // ✅ MANEJAR CÓDIGO ESCANEADO
+
+  // ✅ FUNCIÓN PARA SUBIR IMAGEN A FIREBASE STORAGE
+  const uploadImageToFirebase = async (imageUri, inventoryId, equipmentId) => {
+  try {
+      console.log("📤 Iniciando upload de imagen...");
+      
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+
+      const fileName = `equipos/${inventoryId}/${equipmentId}/${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
+      const storageRef = ref(storage, fileName);
+
+      console.log("📁 Subiendo a:", fileName);
+      
+      if (!blob.type.startsWith('image/')) {
+        throw new Error("El archivo debe ser una imagen");
+      }
+      
+      if (blob.size > 5 * 1024 * 1024) {
+        throw new Error("La imagen es demasiado grande (máximo 5MB)");
+      }
+      
+      const uploadResult = await uploadBytes(storageRef, blob);
+      console.log("✅ Upload completado:", uploadResult);
+      
+      const downloadURL = await getDownloadURL(storageRef);
+      console.log("🔗 URL obtenida:", downloadURL);
+      
+      return downloadURL;
+      
+    } catch (error) {
+      console.error("❌ Error subiendo imagen:", error);
+      throw new Error(`Error al subir imagen: ${error.message}`);
+    }
+  };
+
+  // ✅ CORREGIR: MANEJAR ENVÍO DEL FORMULARIO
+  const handleSubmit = async () => {
+  console.log("=== 🚀 INICIANDO handleSubmit ===");
+  
+  try {
+    // Ejecutar diagnóstico primero
+    await checkPermissions();
+
+    if (!formData.serial.trim()) {
+      Alert.alert("Error", "El número de serie es requerido");
+      return;
+    }
+
+    setLocalLoading(true);
+    
+    console.log("📝 Datos del formulario:", formData);
+    console.log("🔑 inventoryId:", inventoryId);
+
+    // 1. Preparar datos del equipo
+    const equipmentData = {
+      serial: formData.serial.trim().toUpperCase(),
+      estado: formData.estado,
+      observaciones: formData.observaciones.trim(),
+      tipo: "computadora",
+    };
+
+    console.log("📦 PASO 1: Creando equipo en Firestore...");
+
+    // 2. Crear el equipo en Firestore
+    const createResult = await createEquipment(inventoryId, equipmentData);
+    
+    console.log("📊 Resultado createEquipment:", createResult);
+
+    if (!createResult.success) {
+      throw new Error(createResult.error || "No se pudo crear el equipo");
+    }
+
+    const equipmentId = createResult.id;
+    console.log("🆔 Equipment ID generado:", equipmentId);
+
+    // 3. Procesar imagen si existe
+    if (formData.imagen) {
+      console.log("🖼️ PASO 2: Procesando imagen...");
+      
+      try {
+        setUploadingImage(true);
+        
+        console.log("📤 Intentando subir imagen...");
+        
+        // 🔥 PRUEBA CON REGLAS PERMISIVAS
+        const imagenUrl = await uploadImageToFirebase(
+          formData.imagen, 
+          inventoryId, 
+          equipmentId
+        );
+        
+        console.log("✅ ¡IMAGEN SUBIDA EXITOSAMENTE!");
+        console.log("🔗 URL:", imagenUrl);
+        
+        // 🔥 PRUEBA ACTUALIZAR EQUIPO
+        console.log("🔄 PASO 3: Actualizando equipo con URL...");
+        
+        const updateResult = await updateEquipment(inventoryId, equipmentId, { 
+          imagenUrl: imagenUrl 
+        });
+        
+        console.log("📋 Resultado updateEquipment:", updateResult);
+        
+        if (!updateResult.success) {
+          console.error("❌ updateEquipment falló:", updateResult.error);
+        } else {
+          console.log("🎉 ¡ÉXITO COMPLETO! Equipo + imagen guardados");
+        }
+        
+      } catch (uploadError) {
+        console.error("❌ ERROR en proceso de imagen:", uploadError);
+        console.error("📌 Código error:", uploadError.code);
+        console.error("📌 Mensaje:", uploadError.message);
+        
+        // El equipo ya está creado, solo mostramos advertencia
+        Alert.alert(
+          "Equipo creado",
+          "Equipo registrado, pero hubo un problema con la imagen: " + uploadError.message,
+          [{ text: "Aceptar" }]
+        );
+      } finally {
+        setUploadingImage(false);
+      }
+    } else {
+      console.log("📸 No hay imagen para subir");
+    }
+
+    // 4. Mostrar éxito
+    Alert.alert(
+      "¡Éxito!", 
+      "Equipo registrado correctamente" + (formData.imagen ? " con imagen" : ""),
+      [
+        {
+          text: "Agregar otro",
+          onPress: () => {
+            setFormData({
+              serial: "",
+              estado: "nuevo",
+              imagen: null,
+              observaciones: "",
+            });
+            setImagePreview(null);
+          },
+        },
+        {
+          text: "Volver a detalles",
+          onPress: () => router.back(),
+        },
+      ]
+    );
+
+  } catch (error) {
+    console.error("❌ ERROR CRÍTICO en handleSubmit:", error);
+    Alert.alert("Error", error.message);
+  } finally {
+    setLocalLoading(false);
+    setUploadingImage(false);
+  }
+};
+
+  // ✅ MANEJAR CÓDIGO ESCANEADO - MANTENER INTACTO
   const handleBarCodeScanned = ({ type, data }) => {
     if (!scanned) {
       setScanned(true);
@@ -69,16 +281,15 @@ export default function PcForm() {
     }
   };
 
-  // ✅ ABRIR SCANNER CON VERIFICACIÓN DE PERMISOS
+  // ✅ ABRIR SCANNER - MANTENER INTACTO
   const openScanner = async () => {
     try {
-      // Si no hay permisos, solicitarlos
       if (!permission?.granted) {
         const result = await requestPermission();
         if (!result.granted) {
           Alert.alert(
             "Permiso requerido",
-            "Necesitas permitir el acceso a la cámara para escanear",
+            "Necesitas permitir el acceso a la cámara",
             [{ text: "OK" }]
           );
           return;
@@ -105,7 +316,7 @@ export default function PcForm() {
     }));
   };
 
-  // FUNCIÓN PARA SELECCIONAR IMAGEN
+  // ✅ FUNCIONES DE IMAGEN - MANTENER INTACTAS
   const pickImage = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -119,7 +330,7 @@ export default function PcForm() {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 0.8,
+        quality: 0.7,
       });
 
       if (!result.canceled && result.assets[0]) {
@@ -136,7 +347,6 @@ export default function PcForm() {
     }
   };
 
-  // FUNCIÓN PARA TOMAR FOTO
   const takePhoto = async () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -149,7 +359,7 @@ export default function PcForm() {
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 0.8,
+        quality: 0.7,
       });
 
       if (!result.canceled && result.assets[0]) {
@@ -166,46 +376,8 @@ export default function PcForm() {
     }
   };
 
-  const handleSubmit = async () => {
-    if (!formData.serial.trim()) {
-      Alert.alert("Error", "El número de serie es requerido");
-      return;
-    }
-
-    const equipmentData = {
-      serial: formData.serial.trim().toUpperCase(),
-      estado: formData.notas,
-      observaciones: formData.observaciones.trim(),
-      imagenUrl: formData.imagen,
-      tipo: "computadora",
-      createdAt: new Date().toISOString(),
-    };
-
-    const result = await createEquipment(inventoryId, equipmentData);
-
-    if (result.success) {
-      Alert.alert("¡Éxito!", "Equipo registrado correctamente", [
-        {
-          text: "Agregar otro",
-          onPress: () => {
-            setFormData({
-              serial: "",
-              notas: "nuevo",
-              imagen: null,
-              observaciones: "",
-            });
-            setImagePreview(null);
-          },
-        },
-        {
-          text: "Volver a detalles",
-          onPress: () => router.back(),
-        },
-      ]);
-    } else {
-      Alert.alert("Error", result.error || "No se pudo registrar el equipo");
-    }
-  };
+  // ✅ CALCULAR LOADING TOTAL
+  const isLoading = contextLoading || localLoading || uploadingImage;
 
   return (
     <>
@@ -227,7 +399,7 @@ export default function PcForm() {
             </Text>
           </View>
 
-          {/* SECCIÓN 1: NÚMERO DE SERIE CON SCANNER */}
+          {/* SECCIÓN 1: NÚMERO DE SERIE */}
           <View style={formEquipmentStyle.section}>
             <Text style={formEquipmentStyle.sectionTitle}>
               🔢 Número de Serie *
@@ -238,7 +410,6 @@ export default function PcForm() {
                 Ingresa el número de serie del equipo:
               </Text>
 
-              {/* INPUT CON BOTÓN DE SCANNER */}
               <View style={formEquipmentStyle.serialInputContainer}>
                 <TextInput
                   style={[
@@ -249,24 +420,23 @@ export default function PcForm() {
                   onChangeText={(text) => handleInputChange("serial", text)}
                   placeholder="Ej: SN123456789ABC"
                   placeholderTextColor="#999"
-                  editable={!loading}
+                  editable={!isLoading}
                   autoCapitalize="characters"
                   maxLength={50}
                 />
                 <TouchableOpacity
                   style={formEquipmentStyle.scannerButton}
                   onPress={openScanner}
-                  disabled={loading}
+                  disabled={isLoading}
                 >
                   <Ionicons name="barcode-outline" size={24} color="#fff" />
                 </TouchableOpacity>
               </View>
 
-              {/* BOTÓN DE SCANNER COMPLETO */}
               <TouchableOpacity
                 style={formEquipmentStyle.scannerFullButton}
                 onPress={openScanner}
-                disabled={loading}
+                disabled={isLoading}
               >
                 <Ionicons
                   name="barcode-outline"
@@ -285,7 +455,7 @@ export default function PcForm() {
             </View>
           </View>
 
-          {/* SECCIÓN 2: ESTADO DEL EQUIPO (NOTAS) */}
+          {/* SECCIÓN 2: ESTADO DEL EQUIPO */}
           <View style={formEquipmentStyle.section}>
             <Text style={formEquipmentStyle.sectionTitle}>
               📝 Estado del Equipo
@@ -297,10 +467,10 @@ export default function PcForm() {
               </Text>
               <View style={formEquipmentStyle.pickerContainer}>
                 <Picker
-                  selectedValue={formData.notas}
-                  onValueChange={(value) => handleInputChange("notas", value)}
+                  selectedValue={formData.estado} // ✅ CAMBIADO A "estado"
+                  onValueChange={(value) => handleInputChange("estado", value)}
                   style={formEquipmentStyle.picker}
-                  enabled={!loading}
+                  enabled={!isLoading}
                 >
                   <Picker.Item label="🆕 Equipo Nuevo" value="nuevo" />
                   <Picker.Item label="🔄 Equipo Usado" value="usado" />
@@ -314,14 +484,13 @@ export default function PcForm() {
           {/* SECCIÓN 3: IMAGEN */}
           <View style={formEquipmentStyle.section}>
             <Text style={formEquipmentStyle.sectionTitle}>
-              📸 Fotografía del Equipo
+              📸 Fotografía del Equipo {uploadingImage && "(Subiendo...)"}
             </Text>
 
             <Text style={formEquipmentStyle.label}>
               Sube una foto del equipo:
             </Text>
 
-            {/* BOTONES DE IMAGEN */}
             <View style={formEquipmentStyle.imageButtonsContainer}>
               <TouchableOpacity
                 style={[
@@ -329,7 +498,7 @@ export default function PcForm() {
                   formEquipmentStyle.galleryButton,
                 ]}
                 onPress={pickImage}
-                disabled={loading}
+                disabled={isLoading}
               >
                 <Ionicons name="image-outline" size={24} color="#fff" />
                 <Text style={formEquipmentStyle.imageButtonText}>Galería</Text>
@@ -341,7 +510,7 @@ export default function PcForm() {
                   formEquipmentStyle.cameraButton,
                 ]}
                 onPress={takePhoto}
-                disabled={loading}
+                disabled={isLoading}
               >
                 <Ionicons name="camera-outline" size={24} color="#fff" />
                 <Text style={formEquipmentStyle.imageButtonText}>Cámara</Text>
@@ -363,7 +532,7 @@ export default function PcForm() {
                     setImagePreview(null);
                     handleInputChange("imagen", null);
                   }}
-                  disabled={loading}
+                  disabled={isLoading}
                 >
                   <Ionicons
                     name="close-circle"
@@ -382,7 +551,7 @@ export default function PcForm() {
                   No hay imagen seleccionada
                 </Text>
                 <Text style={formEquipmentStyle.noImageSubtext}>
-                  Toca un botón arriba para agregar
+                  (Opcional) Toca un botón arriba para agregar
                 </Text>
               </View>
             )}
@@ -404,7 +573,7 @@ export default function PcForm() {
                 }
                 placeholder="Ej: Equipo con detalles en la carcasa, falta cable de poder, etc."
                 placeholderTextColor="#999"
-                editable={!loading}
+                editable={!isLoading}
                 multiline
                 numberOfLines={4}
                 textAlignVertical="top"
@@ -424,7 +593,7 @@ export default function PcForm() {
                 formEquipmentStyle.cancelButton,
               ]}
               onPress={() => router.back()}
-              disabled={loading}
+              disabled={isLoading}
             >
               <Ionicons name="arrow-back" size={20} color={COLORS.text} />
               <Text style={formEquipmentStyle.cancelButtonText}> Cancelar</Text>
@@ -434,12 +603,12 @@ export default function PcForm() {
               style={[
                 formEquipmentStyle.button,
                 formEquipmentStyle.submitButton,
-                loading && formEquipmentStyle.buttonDisabled,
+                isLoading && formEquipmentStyle.buttonDisabled,
               ]}
               onPress={handleSubmit}
-              disabled={loading}
+              disabled={isLoading}
             >
-              {loading ? (
+              {isLoading ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <>
@@ -455,7 +624,7 @@ export default function PcForm() {
         </View>
       </ScrollView>
 
-      {/* ✅ MODAL DEL SCANNER SIMPLIFICADO */}
+      {/* ✅ MODAL DEL SCANNER - MANTENER INTACTO */}
       <Modal
         visible={showScanner}
         animationType="slide"
@@ -476,7 +645,7 @@ export default function PcForm() {
             <View style={{ width: 40 }} />
           </View>
           
-          {/* ✅ USAR CameraView EN LUGAR DE Camera */}
+          {/* CÁMARA */}
           {permission?.granted ? (
             <View style={formEquipmentStyle.cameraContainer}>
               <CameraView
@@ -559,13 +728,14 @@ export default function PcForm() {
   );
 }
 
-// Estilos simplificados
+// Estilos
 const styles = StyleSheet.create({
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#000',
+    padding: 20,
   },
   loadingText: {
     color: '#fff',

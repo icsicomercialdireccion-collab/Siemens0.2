@@ -1,15 +1,15 @@
 // contexts/EquipmentContext.jsx
 import {
-    addDoc,
-    collection,
-    deleteDoc,
-    doc,
-    getDocs,
-    increment,
-    query,
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  increment,
+  query,
 
-    serverTimestamp,
-    updateDoc
+  serverTimestamp,
+  updateDoc
 } from 'firebase/firestore';
 import { createContext, useContext, useState } from 'react';
 import { Alert } from 'react-native';
@@ -124,41 +124,55 @@ export const EquipmentProvider = ({ children }) => {
 
   // 3. ACTUALIZAR EQUIPO
   const updateEquipment = async (inventoryId, equipmentId, updates) => {
-    try {
-      setLoading(true);
-      console.log("✏️ Actualizando equipo:", equipmentId);
-      
-      const equipmentRef = doc(db, 'inventarios', inventoryId, 'equipos', equipmentId);
-      
-      await updateDoc(equipmentRef, {
-        ...updates,
-        updatedAt: serverTimestamp()
-      });
-      
-      // Actualizar estado local
-      setEquipments(prev => 
-        prev.map(eq => 
-          eq.id === equipmentId 
-            ? { ...eq, ...updates, updatedAt: new Date() }
-            : eq
-        )
-      );
-      
-      return {
-        success: true,
-        message: 'Equipo actualizado exitosamente'
-      };
-      
-    } catch (error) {
-      console.error("❌ Error actualizando equipo:", error);
-      return {
-        success: false,
-        error: 'Error al actualizar equipo'
-      };
-    } finally {
-      setLoading(false);
+  try {
+    setLoading(true);
+    console.log("✏️ [CONTEXTO] Actualizando equipo:", { 
+      inventoryId, 
+      equipmentId, 
+      updates 
+    });
+    
+    // ✅ VERIFICAR QUE LOS PARÁMETROS NO SEAN UNDEFINED
+    if (!inventoryId || !equipmentId) {
+      throw new Error("inventoryId o equipmentId son undefined");
     }
-  };
+    
+    const equipmentRef = doc(db, 'inventarios', inventoryId, 'equipos', equipmentId);
+    console.log("📄 [CONTEXTO] Referencia:", equipmentRef.path);
+    
+    await updateDoc(equipmentRef, {
+      ...updates,
+      updatedAt: serverTimestamp()
+    });
+    
+    console.log("✅ [CONTEXTO] Equipo actualizado exitosamente");
+    
+    // Actualizar estado local
+    setEquipments(prev => 
+      prev.map(eq => 
+        eq.id === equipmentId 
+          ? { ...eq, ...updates, updatedAt: new Date() }
+          : eq
+      )
+    );
+    
+    return {
+      success: true,
+      message: 'Equipo actualizado exitosamente'
+    };
+    
+  } catch (error) {
+    console.error("❌ [CONTEXTO] Error actualizando equipo:", error);
+    console.error("🔥 Detalles:", error.code, error.message);
+    
+    return {
+      success: false,
+      error: `Error al actualizar equipo: ${error.message}`
+    };
+  } finally {
+    setLoading(false);
+  }
+};
 
   // 4. ELIMINAR EQUIPO
   const deleteEquipment = async (inventoryId, equipmentId) => {
