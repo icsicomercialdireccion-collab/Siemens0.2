@@ -77,10 +77,13 @@ export default function DetailsScreen() {
 
   const handleViewEquipment = (equipment) => {
     router.push({
-      pathname: "/(equipment)/[equipmentId]",
+      pathname: "/(equipment-detail)/[id]",
       params: {
+        id: equipment.id,
+      // Pasar toda la data necesaria
+      equipmentData: JSON.stringify(equipment),
         inventoryId: id,
-        equipmentId: equipment.id,
+        
       },
     });
   };
