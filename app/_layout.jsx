@@ -44,6 +44,7 @@ function AuthHandler() {
         <Stack.Screen name="(tabs-admin)" />
         <Stack.Screen name="(forms)" />
         <Stack.Screen name="(details)" />
+        <Stack.Screen name="(equipment-detail)" />
         {/* NO incluir (tabs) aquí para admin */}
       </Stack>
     );
@@ -53,6 +54,7 @@ function AuthHandler() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="(forms)" />
         <Stack.Screen name="(details)" />
+        <Stack.Screen name="(equipment-detail)" />
         {/* NO incluir (tabs-admin) aquí para user */}
       </Stack>
     );

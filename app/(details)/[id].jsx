@@ -79,11 +79,9 @@ export default function DetailsScreen() {
     router.push({
       pathname: "/(equipment-detail)/[id]",
       params: {
-        id: equipment.id,
-      // Pasar toda la data necesaria
-      equipmentData: JSON.stringify(equipment),
-        inventoryId: id,
-        
+        id: equipment.id,           // Esto se mapea al [id] dinámico
+        inventoryId: id,            // Esto va como query param
+        equipmentData: JSON.stringify(equipment), // Opcional
       },
     });
   };
