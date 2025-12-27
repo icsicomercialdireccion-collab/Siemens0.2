@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, FlatList, Image, Text, TouchableOpacity, View
 import { ListStyle } from '../../assets/styles/list.style';
 import { COLORS } from '../../constants/colors';
 
+
 export default function EquipmentList({ 
   equipments, 
   loading, 
@@ -17,7 +18,17 @@ export default function EquipmentList({
   const renderEquipmentItem = ({ item }) => (
     <TouchableOpacity
       style={ListStyle.equipmentCard}
-      onPress={() => onPressEquipment && onPressEquipment(item)}
+      onPress={() => {
+        console.log('📱 Presionando equipo:', {
+          equipmentId: item.id,
+          inventoryId: inventoryId
+        });
+        
+        if (onPressEquipment) {
+          // PASA AMBOS PARÁMETROS
+          onPressEquipment(item, inventoryId);
+        }
+      }}
       activeOpacity={0.7}
     >
       {/* Encabezado de la tarjeta */}

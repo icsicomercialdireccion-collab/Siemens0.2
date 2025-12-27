@@ -16,35 +16,64 @@ export const EquipmentProvider = ({ children }) => {
 
   // 1. OBTENER EQUIPOS DE UN INVENTARIO
   const getEquipmentsByInventory = async (inventoryId) => {
-    try {
-      setLoading(true);
-      
-      const q = query(
-        collection(db, 'inventarios', inventoryId, 'equipos')
-      );
-      
-      const querySnapshot = await getDocs(q);
-      const equipmentsList = querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-          updatedAt: data.updatedAt?.toDate?.()?.toISOString() || new Date().toISOString()
-        };
-      });
-      
-      setEquipments(equipmentsList);
-      return equipmentsList;
-      
-    } catch (error) {
-      console.error("Error obteniendo equipos:", error);
-      Alert.alert("Error", "No se pudieron cargar los equipos");
-      return [];
-    } finally {
-      setLoading(false);
+  try {
+    setLoading(true);
+    console.log('📋 Obteniendo equipos para inventario:', inventoryId);
+    
+    const q = query(
+      collection(db, 'inventarios', inventoryId, 'equipos')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    console.log(`📊 ${querySnapshot.docs.length} equipos encontrados`);
+    
+    const equipmentsList = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        serial: data.serial || 'Sin serial',
+        estado: data.estado || 'nuevo',
+        observaciones: data.observaciones || '',
+        tipo: data.tipo || "computadora",
+        imagenUrl: data.imagenUrl || null,
+        imagenFileName: data.imagenFileName || null,
+        
+        // CONVERTIR TIMESTAMPS
+        createdAt: data.createdAt?.toDate?.() || new Date(),
+        updatedAt: data.updatedAt?.toDate?.() || new Date(),
+        
+        // Mantener otros campos
+        ...Object.keys(data).reduce((acc, key) => {
+          if (!['createdAt', 'updatedAt'].includes(key)) {
+            acc[key] = data[key];
+          }
+          return acc;
+        }, {})
+      };
+    });
+    
+    setEquipments(equipmentsList);
+    return equipmentsList;
+    
+  } catch (error) {
+    console.error("❌ Error obteniendo equipos:", {
+      message: error.message,
+      code: error.code,
+      inventoryId
+    });
+    
+    let errorMessage = "No se pudieron cargar los equipos";
+    if (error.code === 'permission-denied') {
+      errorMessage = "No tienes permiso para ver estos equipos";
     }
-  };
+    
+    Alert.alert("Error", errorMessage);
+    return [];
+    
+  } finally {
+    setLoading(false);
+  }
+};
 
   // 2. CREAR NUEVO EQUIPO (VERSIÓN LIMPIA)
   const createEquipment = async (inventoryId, equipmentData) => {
@@ -233,32 +262,93 @@ export const EquipmentProvider = ({ children }) => {
 
   // 5. OBTENER UN EQUIPO ESPECÍFICO
   const getEquipment = async (inventoryId, equipmentId) => {
-    try {
-      const equipmentRef = doc(db, 'inventarios', inventoryId, 'equipos', equipmentId);
-      const equipmentSnap = await getDoc(equipmentRef);
-      
-      if (equipmentSnap.exists()) {
-        return {
-          success: true,
-          data: {
-            id: equipmentSnap.id,
-            ...equipmentSnap.data()
-          }
-        };
-      } else {
-        return {
-          success: false,
-          error: 'Equipo no encontrado'
-        };
-      }
-    } catch (error) {
-      console.error("Error obteniendo equipo:", error);
+  try {
+    console.log('🔍 getEquipment llamado:', { inventoryId, equipmentId });
+    
+    if (!inventoryId || !equipmentId) {
+      console.error('❌ IDs inválidos:', { inventoryId, equipmentId });
       return {
         success: false,
-        error: 'Error al cargar equipo'
+        error: 'IDs de inventario o equipo inválidos'
       };
     }
-  };
+    
+    const equipmentRef = doc(db, 'inventarios', inventoryId, 'equipos', equipmentId);
+    console.log('📄 Referencia creada:', equipmentRef.path);
+    
+    const equipmentSnap = await getDoc(equipmentRef);
+    console.log('📦 Snap obtenido:', equipmentSnap.exists());
+    
+    if (equipmentSnap.exists()) {
+      const data = equipmentSnap.data();
+      
+      // CONVERTIR TIMESTAMPS DE FIRESTORE
+      const processedData = {
+        id: equipmentSnap.id,
+        serial: data.serial || 'Sin serial',
+        estado: data.estado || 'nuevo',
+        observaciones: data.observaciones || '',
+        tipo: data.tipo || 'computadora',
+        imagenUrl: data.imagenUrl || null,
+        imagenFileName: data.imagenFileName || null,
+        
+        // CONVERTIR TIMESTAMPS CRÍTICO
+        createdAt: data.createdAt?.toDate?.() || new Date(),
+        updatedAt: data.updatedAt?.toDate?.() || new Date(),
+        
+        // Campos adicionales que puedan existir
+        ...Object.keys(data).reduce((acc, key) => {
+          if (!['createdAt', 'updatedAt'].includes(key)) {
+            acc[key] = data[key];
+          }
+          return acc;
+        }, {})
+      };
+      
+      console.log('✅ Equipo procesado:', {
+        id: processedData.id,
+        serial: processedData.serial,
+        hasImage: !!processedData.imagenUrl,
+        createdAt: processedData.createdAt,
+        updatedAt: processedData.updatedAt
+      });
+      
+      return {
+        success: true,
+        data: processedData
+      };
+      
+    } else {
+      console.log('❌ Equipo no existe en Firestore');
+      return {
+        success: false,
+        error: 'Equipo no encontrado en la base de datos'
+      };
+    }
+  } catch (error) {
+    console.error("🔥 Error en getEquipment:", {
+      message: error.message,
+      code: error.code,
+      inventoryId,
+      equipmentId
+    });
+    
+    let errorMessage = 'Error al cargar equipo';
+    
+    if (error.code === 'permission-denied') {
+      errorMessage = 'No tienes permisos para ver este equipo';
+    } else if (error.code === 'not-found') {
+      errorMessage = 'Equipo no encontrado';
+    } else if (error.message.includes('Invalid document reference')) {
+      errorMessage = 'Referencia inválida al equipo';
+    }
+    
+    return {
+      success: false,
+      error: errorMessage
+    };
+  }
+};
 
   // FUNCIÓN PARA SUBIR IMAGEN A STORAGE
   const uploadImageToStorage = async (imageUri, inventoryId, serial) => {
