@@ -6,6 +6,7 @@ import SafeScreen from './components/safeScreen';
 import { AuthProvider, useAuth } from './contexts/AutContext';
 import { EquipmentProvider } from './contexts/EquipmentContext';
 import { InventoryProvider } from './contexts/InventoryContext';
+import { ProfileProvider } from './contexts/ProfileContext';
 
 function AuthHandler() {
   const { user, loading, userData } = useAuth();
@@ -71,13 +72,15 @@ const LoadingScreen = ({ message }) => (
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <InventoryProvider>
+      <ProfileProvider>
+        <InventoryProvider>
         <EquipmentProvider>
           <SafeScreen style={{flex: 1, backgroundColor: COLORS.background}}>
             <AuthHandler />
           </SafeScreen>
         </EquipmentProvider>
       </InventoryProvider>
+      </ProfileProvider>
     </AuthProvider>
   );
 }
