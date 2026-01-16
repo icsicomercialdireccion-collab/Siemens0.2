@@ -115,12 +115,7 @@ export default function PerfilAdminScreen() {
               <Ionicons name="person" size={60} color="#fff" />
             </View>
           )}
-          <TouchableOpacity 
-            style={profileStyle.editAvatarButton}
-            onPress={handleEditProfile}
-          >
-            <Ionicons name="camera" size={16} color="#fff" />
-          </TouchableOpacity>
+          
         </View>
         
         <Text style={profileStyle.userName}>{userData.name}</Text>

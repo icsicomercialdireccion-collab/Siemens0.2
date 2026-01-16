@@ -26,6 +26,11 @@ export const AuthProvider = ({ children }) => {
   const [userData, setUserData] = useState(null);
   const [initialLoad, setInitialLoad] = useState(true);
 
+  const [token, setToken] = useState(null);
+  const [tokenExpiry, setTokenExpiry] = useState(null);
+  const [isTokenRefreshing, setIsTokenRefreshing] = useState(false);
+  const [lastTokenRefresh, setLastTokenRefresh] = useState(null);
+
   // 🔥 FIX CRÍTICO: Cargar userData inmediatamente cuando cambia el usuario
   useEffect(() => {
     console.log("🔄 [AUTH] useEffect iniciado");
@@ -51,6 +56,80 @@ export const AuthProvider = ({ children }) => {
 
     return unsubscribe;
   }, []);
+
+    // 🔥 NUEVO: Función para manejar refresh de tokens
+  const handleTokenRefresh = async (firebaseUser) => {
+    try {
+      console.log("🔄 [AUTH] Verificando token...");
+      
+      // Obtener información del token actual
+      const tokenResult = await firebaseUser.getIdTokenResult(false);
+      const expiration = new Date(tokenResult.expirationTime);
+      const now = new Date();
+      const minutesLeft = (expiration - now) / (1000 * 60);
+      
+      console.log(`⏰ [AUTH] Token expira en: ${minutesLeft.toFixed(1)} minutos`);
+      
+      // Guardar token y expiración
+      setToken(tokenResult.token);
+      setTokenExpiry(expiration);
+      
+      // Si el token está por expirar (< 5 min), refrescar automáticamente
+      if (minutesLeft < 5) {
+        console.log("⚠️ [AUTH] Token casi expirado, refrescando...");
+        await refreshToken(firebaseUser);
+      }
+      
+    } catch (error) {
+      console.error("❌ [AUTH] Error verificando token:", error);
+      
+      // Intentar forzar refresh
+      try {
+        await refreshToken(firebaseUser);
+      } catch (refreshError) {
+        console.error("❌ [AUTH] Error crítico al refrescar token:", refreshError);
+        
+        // Forzar logout si no se puede recuperar
+        if (refreshError.code === 'auth/user-token-expired' || 
+            refreshError.code === 'auth/invalid-user-token') {
+          console.log("🔓 [AUTH] Token inválido, cerrando sesión...");
+          await auth.signOut();
+        }
+      }
+    }
+  };
+
+  // 🔥 NUEVO: Función para refrescar token
+  const refreshToken = async (firebaseUser) => {
+    if (isTokenRefreshing) {
+      console.log("⏳ [AUTH] Ya se está refrescando token, esperando...");
+      return;
+    }
+    
+    setIsTokenRefreshing(true);
+    
+    try {
+      console.log("🔄 [AUTH] Refrescando token...");
+      
+      // Forzar refresh
+      const newToken = await firebaseUser.getIdToken(true);
+      const tokenResult = await firebaseUser.getIdTokenResult(true);
+      
+      // Actualizar estados
+      setToken(newToken);
+      setTokenExpiry(new Date(tokenResult.expirationTime));
+      setLastTokenRefresh(new Date());
+      
+      console.log("✅ [AUTH] Token refrescado exitosamente");
+      console.log(`   Nueva expiración: ${tokenResult.expirationTime}`);
+      
+    } catch (error) {
+      console.error("❌ [AUTH] Error refrescando token:", error);
+      throw error;
+    } finally {
+      setIsTokenRefreshing(false);
+    }
+  };
 
   // 🔥 FIX: Función loadUserData mejorada
   const loadUserData = async (userId) => {
