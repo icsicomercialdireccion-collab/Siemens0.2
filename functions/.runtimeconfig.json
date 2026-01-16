@@ -1,0 +1,7 @@
+{
+  "export": {
+    "max_image_size": 5242880,
+    "image_timeout": 10000,
+    "export_url_expiry": 86400000
+  }
+}

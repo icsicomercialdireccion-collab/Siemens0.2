@@ -28,8 +28,16 @@ export default {
           photosPermission: "La app necesita acceso a tus fotos.",
           cameraPermission: "La app necesita acceso a la cámara para tomar fotos."
         }
-      ]
+      ],
       // ❌ REMOVER expo-camera de aquí (ya viene incluido en Expo)
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Permite guardar archivos en tu galería.",
+          "savePhotosPermission": "Permite guardar archivos Excel.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ]
     ],
     
     // ✅ AGREGAR CONFIGURACIÓN DE PERMISOS EN EL NIVEL PRINCIPAL
