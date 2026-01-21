@@ -32,7 +32,7 @@
     "expo-intent-launcher": "~13.0.8",
     "expo-linking": "~8.0.10",
     "expo-media-library": "~18.2.1",
-    "expo-router": "^6.0.21",
+    "expo-router": "^6.0.22",
     "expo-sharing": "~14.0.8",
     "expo-splash-screen": "~31.0.12",
     "expo-status-bar": "~3.0.9",
@@ -52,6 +52,7 @@
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.5.1",
     "uuid": "^13.0.0",
+    "uuidv4": "^6.2.13",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
