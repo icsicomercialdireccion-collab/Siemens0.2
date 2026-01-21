@@ -5,6 +5,7 @@ const admin = require("firebase-admin");
 const ExcelJS = require("exceljs");
 const axios = require("axios");
 const sharp = require("sharp");
+const { v4: uuidv4 } = require("uuid");
 
 // Inicializar Firebase Admin
 admin.initializeApp();
@@ -94,7 +95,7 @@ exports.debugExport = onRequest(
         timestamp: new Date().toISOString(),
       });
     }
-  }
+  },
 );
 
 // ============================================
@@ -103,8 +104,8 @@ exports.debugExport = onRequest(
 exports.exportInventory = onRequest(
   {
     cors: true,
-    timeoutSeconds: 300, // 5 minutos para procesar imágenes
-    memory: "1GiB", // 1GB de RAM para imágenes
+    timeoutSeconds: 300,
+    memory: "1GiB",
     minInstances: 0,
     maxInstances: 10,
   },
@@ -152,7 +153,7 @@ exports.exportInventory = onRequest(
         {
           localidad: inventarioData.localidad,
           estado: inventarioData.estado,
-        }
+        },
       );
 
       // 3. OBTENER EQUIPOS
@@ -182,100 +183,123 @@ exports.exportInventory = onRequest(
 
       const worksheet = workbook.addWorksheet("Inventario");
 
-      // 5. CONFIGURAR COLUMNAS (IMPORTANTE: columna para imágenes)
+      // 5. CONFIGURAR COLUMNAS (SOLO LAS QUE NECESITAS)
       worksheet.columns = [
         { header: "#", key: "numero", width: 8 },
         { header: "SERIAL", key: "serial", width: 25 },
-        { header: "MODELO", key: "modelo", width: 20 },
-        { header: "MARCA", key: "marca", width: 15 },
         { header: "ESTADO", key: "estado", width: 15 },
-        { header: "UBICACIÓN", key: "ubicacion", width: 20 },
-        { header: "IMAGEN", key: "imagen", width: 25 }, // ← Columna para miniaturas
-        { header: "OBSERVACIONES", key: "observaciones", width: 30 },
+        { header: "COMENTARIO", key: "comentario", width: 30 },
+        { header: "IMAGEN", key: "imagen", width: 25 },
       ];
 
       // Estilo para encabezados
       const headerRow = worksheet.getRow(1);
-      headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      headerRow.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
       headerRow.fill = {
         type: "pattern",
         pattern: "solid",
         fgColor: { argb: "FF2196F3" }, // Azul
       };
-      headerRow.alignment = { horizontal: "center" };
+      headerRow.alignment = {
+        horizontal: "center",
+        vertical: "middle",
+      };
+      headerRow.height = 25;
 
-      // Ajustar altura de filas para imágenes
-      worksheet.properties.defaultRowHeight = 95;
+      // Configurar estilo de borde para todas las celdas
+      const cellBorder = {
+        top: { style: "thin", color: { argb: "FFCCCCCC" } },
+        left: { style: "thin", color: { argb: "FFCCCCCC" } },
+        bottom: { style: "thin", color: { argb: "FFCCCCCC" } },
+        right: { style: "thin", color: { argb: "FFCCCCCC" } },
+      };
 
-      // 6. PROCESAR EQUIPOS CON IMÁGENES
+      // 6. PROCESAR EQUIPOS CON IMÁGENES - SIN ESPACIOS
       logger.info(`🖼️ Procesando ${totalEquipos} equipos con imágenes...`);
       let contador = 0;
       let imagenesProcesadas = 0;
       let imagenesFallidas = 0;
 
+      // IMPORTANTE: Primero preparar todos los datos
+      const equiposData = [];
       for (const doc of equiposSnapshot.docs) {
         contador++;
         const equipo = doc.data();
-        const equipoId = doc.id;
 
-        logger.info(
-          `   📝 Procesando equipo ${contador}/${totalEquipos}: ${equipoId}`,
-          {
-            serial: equipo.serial,
-            tieneImagen: !!(equipo.imagenUrl || equipo.fotoUrl),
-          }
-        );
-
-        // Datos básicos del equipo
-        const rowData = {
+        equiposData.push({
+          id: doc.id,
           numero: contador,
           serial: equipo.serial || equipo.numeroSerie || equipo.codigo || "N/A",
-          modelo: equipo.modelo || equipo.tipo || "N/A",
-          marca: equipo.marca || "N/A",
           estado: equipo.estado || "Pendiente",
-          ubicacion:
-            equipo.ubicacion ||
-            equipo.departamento ||
-            inventarioData.localidad ||
-            "N/A",
-          imagen: "📷",
-          observaciones:
+          comentario:
+            equipo.comentario ||
             equipo.observaciones ||
             equipo.descripcion ||
             equipo.comentarios ||
             "",
-        };
+          imagenUrl: equipo.imagenUrl || equipo.fotoUrl || null,
+        });
+      }
 
-        // Agregar fila al Excel
-        const row = worksheet.addRow(rowData);
+      // AHORA agregar todas las filas de una vez
+      contador = 0;
+      for (const equipo of equiposData) {
+        contador++;
+        const rowNumber = contador + 1; // +1 por la fila de encabezado
+
+        logger.info(
+          `   📝 Procesando equipo ${contador}/${totalEquipos}: ${equipo.id}`,
+        );
+
+        // Usar insertRow en lugar de addRow para evitar espacios
+        const row = worksheet.insertRow(rowNumber, [
+          equipo.numero,
+          equipo.serial,
+          equipo.estado,
+          equipo.comentario,
+          "", // Celda vacía para imagen
+        ]);
+
+        // Configurar altura de la fila
+        row.height = 120; // Altura más manejable
+
+        // Aplicar estilos a todas las celdas de esta fila
+        row.eachCell((cell, colNumber) => {
+          cell.alignment = {
+            vertical: "middle",
+            horizontal: "center",
+            wrapText: true,
+          };
+          cell.border = cellBorder;
+        });
 
         // PROCESAR IMAGEN SI EXISTE
-        const imagenUrl = equipo.imagenUrl || equipo.fotoUrl;
-        if (imagenUrl) {
+        if (equipo.imagenUrl) {
           try {
             logger.info(`      🖼️ Descargando imagen...`, {
-              url: imagenUrl.substring(0, 100),
+              url: equipo.imagenUrl.substring(0, 100),
             });
 
             // Descargar imagen con timeout
-            const imageResponse = await axios.get(imagenUrl, {
+            const imageResponse = await axios.get(equipo.imagenUrl, {
               responseType: "arraybuffer",
-              timeout: 15000, // 15 segundos máximo
-              maxContentLength: 10 * 1024 * 1024, // 10MB máximo
+              timeout: 15000,
+              maxContentLength: 10 * 1024 * 1024,
             });
 
             if (imageResponse.data && imageResponse.data.length > 0) {
-              logger.info(`      🔄 Creando miniatura 100x100...`);
+              logger.info(`      🔄 Creando miniatura...`);
 
-              // Crear miniatura con sharp
+              // Crear miniatura
               const miniaturaBuffer = await sharp(imageResponse.data)
-                .resize(100, 100, {
-                  fit: "cover",
+                .resize(350, 250, {
+                  fit: "contain",
                   position: "center",
                   withoutEnlargement: true,
+                  background: { r: 255, g: 255, b: 255 },
                 })
                 .jpeg({
-                  quality: 85,
+                  quality: 90,
                   mozjpeg: true,
                 })
                 .toBuffer();
@@ -286,28 +310,27 @@ exports.exportInventory = onRequest(
                 extension: "jpeg",
               });
 
-              // Calcular posición (columna G = 7, pero 0-indexed es 6)
-              // Ajustar según tu estructura de columnas
+              // Posicionar imagen en la celda E (columna 5, índice 4)
               worksheet.addImage(imageId, {
-                tl: { col: 6, row: row.number - 1 }, // Columna G (IMAGEN)
-                br: { col: 7, row: row.number },
-                editAs: "oneCell",
+                tl: { col: 4, row: rowNumber - 1 },
+                br: { col: 5, row: rowNumber },
+                editAs: "unfined",
               });
 
               imagenesProcesadas++;
-              logger.info(`      ✅ Imagen incrustada exitosamente`);
+              logger.info(`      ✅ Imagen incrustada en celda E${rowNumber}`);
             }
           } catch (imgError) {
             imagenesFallidas++;
             logger.warn(
               `      ⚠️ Error procesando imagen: ${imgError.message}`,
-              {
-                equipoId: equipoId,
-                errorCode: imgError.code,
-              }
             );
-            // Continuar sin imagen - la celda tendrá solo el emoji 📷
+            // Si falla la imagen, poner texto en la celda
+            row.getCell(5).value = "❌ Imagen no disponible";
           }
+        } else {
+          // Si no hay imagen, mostrar texto
+          row.getCell(5).value = "📷 Sin imagen";
         }
 
         // Pequeña pausa para no sobrecargar
@@ -323,23 +346,26 @@ exports.exportInventory = onRequest(
       });
 
       // 7. AGREGAR INFORMACIÓN DE RESUMEN
-      worksheet.addRow([]); // Fila vacía
-
-      const infoRow = worksheet.addRow([
+      // Agregar fila de información en la última posición + 2
+      const infoRowNumber = worksheet.rowCount + 2;
+      const infoRow = worksheet.getRow(infoRowNumber);
+      infoRow.values = [
         `INVENTARIO: ${inventarioData.mes} ${inventarioData.anio} | ` +
           `LOCALIDAD: ${inventarioData.localidad} | ` +
-          `TOTAL EQUIPOS: ${totalEquipos} | ` +
+          `TOTAL: ${totalEquipos} equipos | ` +
           `IMÁGENES: ${imagenesProcesadas}/${totalEquipos}`,
-      ]);
+      ];
 
-      worksheet.mergeCells(`A${infoRow.number}:H${infoRow.number}`);
-      infoRow.font = { bold: true, size: 12, color: { argb: "FF4CAF50" } }; // Verde
+      // Combinar celdas para la fila de información (A a E)
+      worksheet.mergeCells(`A${infoRowNumber}:E${infoRowNumber}`);
+      infoRow.font = { bold: true, size: 12, color: { argb: "FF4CAF50" } };
       infoRow.alignment = { horizontal: "center" };
       infoRow.fill = {
         type: "pattern",
         pattern: "solid",
         fgColor: { argb: "FFF0F8FF" }, // Azul muy claro
       };
+      infoRow.height = 25;
 
       // 8. GENERAR ARCHIVO EXCEL
       logger.info("💾 Generando archivo Excel...");
@@ -357,89 +383,61 @@ exports.exportInventory = onRequest(
       const bucket = admin.storage().bucket();
       const file = bucket.file(filePath);
 
-      await file.save(excelBuffer, {
+      const accessToken = uuidv4();
+
+      const metadata = {
+        contentType:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         metadata: {
-          contentType:
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          metadata: {
-            inventoryId: inventoryId,
-            inventoryName: `${inventarioData.mes} ${inventarioData.anio}`,
-            localidad: inventarioData.localidad,
-            totalEquipos: totalEquipos,
-            imagenesProcesadas: imagenesProcesadas,
-            exportDate: new Date().toISOString(),
-            generatedBy: "Firebase Functions v7",
-          },
+          inventoryId: inventoryId,
+          inventoryName: `${inventarioData.mes} ${inventarioData.anio}`,
+          localidad: inventarioData.localidad,
+          totalEquipos: totalEquipos,
+          imagenesProcesadas: imagenesProcesadas,
+          exportDate: new Date().toISOString(),
+          generatedBy: "Firebase Functions v7",
+          firebaseStorageDownloadTokens: accessToken, // TOKEN ESPECIAL PARA LINKS AZULES
         },
-      });
+        cacheControl: "public, max-age=31536000",
+      };
+
+      // Subir archivo
+      await file.save(excelBuffer, { metadata: metadata });
+
+      // Hacer público (IMPORTANTE)
+      await file.makePublic();
+
+      // Para asegurar que el token se guardó correctamente, actualizamos metadata
+      try {
+        // Primero obtenemos la metadata actual
+        const [currentMetadata] = await file.getMetadata();
+
+        // Actualizamos solo el token en metadata
+        await file.setMetadata({
+          metadata: {
+            ...currentMetadata.metadata,
+            firebaseStorageDownloadTokens: accessToken,
+          },
+        });
+
+        logger.info(`✅ Token guardado en metadata del archivo`);
+      } catch (metadataError) {
+        logger.warn(`⚠️ Error actualizando metadata: ${metadataError.message}`);
+      }
 
       logger.info(`✅ Archivo subido exitosamente: ${fileName}`);
 
-      // 10. GENERAR URL FIRMADA PARA DESCARGA (24 horas)
-      logger.info("🔗 Generando URL de descarga...");
-      let downloadUrl;
-      let downloadType = "unknown";
+      // 10. GENERAR URL DE DESCARGA CON TOKEN (ASÍ CREAS LINKS AZULES)
+      logger.info("🔗 Generando URL de descarga con token...");
 
-      try {
-        // OPCIÓN 1: Intentar URL firmada (preferida)
-        logger.info("   Intentando URL firmada...");
-        const [signedUrl] = await file.getSignedUrl({
-          action: "read",
-          expires: Date.now() + 24 * 60 * 60 * 1000, // 24 horas
-          version: "v4",
-        });
-        downloadUrl = signedUrl;
-        downloadType = "signed";
-        logger.info("✅ URL firmada generada (24 horas)");
-      } catch (signError) {
-        logger.warn(`⚠️ No se pudo generar URL firmada: ${signError.message}`);
+      // ESTA ES LA FORMA CORRECTA PARA LINKS AZULES EN FIREBASE CONSOLE
+      const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(filePath)}?alt=media&token=${accessToken}`;
 
-        try {
-          // OPCIÓN 2: Hacer el archivo público y usar URL pública
-          logger.info("   Intentando hacer archivo público...");
-          await file.makePublic();
+      // URL alternativa (también debería funcionar)
+      const googleCloudUrl = `https://storage.googleapis.com/${bucket.name}/${encodeURIComponent(filePath)}`;
 
-          // Generar URL pública
-          downloadUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
-          downloadType = "public";
-          logger.info("✅ URL pública generada (archivo público)");
-        } catch (publicError) {
-          logger.warn(
-            `⚠️ No se pudo hacer archivo público: ${publicError.message}`
-          );
-
-          try {
-            // OPCIÓN 3: Obtener URL de acceso público si ya existe
-            downloadUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
-            downloadType = "public_link";
-            logger.info(
-              "✅ Usando link público (puede requerir autenticación)"
-            );
-          } catch (linkError) {
-            logger.warn(
-              `⚠️ No se pudo generar ningún tipo de URL: ${linkError.message}`
-            );
-
-            // OPCIÓN 4: Enviar el archivo directamente en la respuesta
-            logger.info("📤 Enviando archivo directamente...");
-
-            // Configurar headers para descarga
-            res.setHeader(
-              "Content-Type",
-              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            );
-            res.setHeader(
-              "Content-Disposition",
-              `attachment; filename="${fileName}"`
-            );
-
-            // Enviar buffer directamente
-            return res.send(excelBuffer);
-          }
-        }
-      }
-
-      logger.info(`🔗 URL de descarga generada (válida por 24 horas)`);
+      logger.info(`📎 URL Firebase con token: ${downloadUrl}`);
+      logger.info(`📎 URL Google Cloud: ${googleCloudUrl}`);
 
       // 11. RESPONDER CON ÉXITO
       const response = {
@@ -459,15 +457,23 @@ exports.exportInventory = onRequest(
             imagenesFallidas: imagenesFallidas,
             fileSizeMB: parseFloat(fileSizeMB),
             fileName: fileName,
-            // AQUI ASEGURAR QUE downloadUrl NO SEA undefined
-            downloadUrl:
-              downloadUrl ||
-              `https://storage.googleapis.com/${bucket.name}/${filePath}`,
-            downloadType: downloadType,
-            expiresAt:
-              downloadType === "signed"
-                ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-                : "indefinido",
+
+            // USAR LA URL CON TOKEN PARA EL LINK AZUL
+            downloadUrl: downloadUrl,
+
+            // Información del token
+            accessToken: accessToken,
+
+            // URLs alternativas
+            urls: {
+              // ESTA es la que hace el link azul en Firebase Console
+              firebaseWithToken: downloadUrl,
+
+              // Estas son alternativas
+              googleCloud: googleCloudUrl,
+              firebaseStorage: `https://${bucket.name}.firebasestorage.app/${encodeURIComponent(filePath)}?token=${accessToken}`,
+            },
+
             bucketPath: filePath,
             storageBucket: bucket.name,
           },
@@ -478,7 +484,7 @@ exports.exportInventory = onRequest(
       // VERIFICAR ANTES DE ENVIAR
       if (!response.data.exportacion.downloadUrl) {
         logger.error(
-          "⚠️ CRÍTICO: downloadUrl es undefined, generando URL de respaldo"
+          "⚠️ CRÍTICO: downloadUrl es undefined, generando URL de respaldo",
         );
         response.data.exportacion.downloadUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
         response.data.exportacion.downloadType = "public_backup";
@@ -510,22 +516,11 @@ exports.exportInventory = onRequest(
         timestamp: new Date().toISOString(),
         suggestion:
           "El archivo Excel pudo haberse generado en Storage, verifica en Firebase Console",
-        // Información útil para debugging
       };
-
-      // Solo agregar detalles si estamos en desarrollo
-      const isDevelopment =
-        process.env.NODE_ENV === "development" ||
-        process.env.FUNCTIONS_EMULATOR === "true";
-
-      if (isDevelopment && errorResponse._info) {
-        errorResponse._info.details = error.message;
-        errorResponse._info.code = error.code;
-      }
 
       return res.status(500).json(errorResponse);
     }
-  }
+  },
 );
 
 // ============================================
@@ -615,5 +610,5 @@ exports.verifyExport = onRequest(
         details: error.message,
       });
     }
-  }
+  },
 );

@@ -1,174 +1,361 @@
-import { Image } from 'expo-image';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { useRouter } from "expo-router";
+import { useState } from "react";
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { formStyle } from "../../assets/styles/form.style";
+import { useInventory } from "../contexts/InventoryContext";
 
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { useInventory } from '../contexts/InventoryContext';
-
-import { authStyles } from '../../assets/styles/auth.styles';
-import { formStyle } from '../../assets/styles/form.style';
-import { COLORS } from '../../constants/colors';
-
+import { COLORS } from "../../constants/colors";
 
 const FormInventory = () => {
-  
   const router = useRouter();
   const { createInventory, loading } = useInventory();
-  
+
   const [formData, setFormData] = useState({
-    mes: '',
-    anio: '',
-    estado: '',
-    localidad: ''
+    mes: "",
+    anio: "",
+    estado: "",
+    localidad: "",
   });
 
+  const [errors, setErrors] = useState({});
+
   const handleChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleSubmit = async () => {
-    // Validaciones
-  const datosValidados = {
-    mes: (formData.mes || '').trim(),
-    anio: (formData.anio || '').trim(),
-    estado: (formData.estado || '').trim(),
-    localidad: (formData.localidad || '').trim()
-  };
-    
-  if (!datosValidados.mes) {
-    Alert.alert('Error', 'El mes es requerido');
-    return;
-  }
-    
-  if (!datosValidados.anio) {
-    Alert.alert('Error', 'Ingresa un Año valido');
-    return;
-  }
-  
-  if (!datosValidados.estado) {
-    Alert.alert('Error', 'La localidad es requerida');
-    return;
-  }
-
-  if (!datosValidados.localidad) {
-    Alert.alert('Error', 'La localidad es requerida');
-    return;
-  }
-
-  const datosParaEnviar = {
-    ...datosValidados,
-    anio: parseInt(datosValidados.anio) // <-- Convierte a número para Firebase
-  };
-
-  const result = await createInventory(datosParaEnviar); // <-- Un solo punto y coma
-    
-    if (result.success) {
-      Alert.alert('Éxito', result.message, [
-        { 
-          text: 'OK', 
-          onPress: () => router.back() 
-        }
-      ]);
-    } else {
-      Alert.alert('Error', result.error);
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    // Limpiar error cuando el usuario empieza a escribir
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: "" }));
     }
   };
 
-  
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!formData.mes.trim()) {
+      newErrors.mes = "El mes es requerido";
+    }
+
+    if (!formData.anio.trim()) {
+      newErrors.anio = "El año es requerido";
+    } else if (formData.anio.length !== 4 || isNaN(formData.anio)) {
+      newErrors.anio = "Ingresa un año válido (4 dígitos)";
+    }
+
+    if (!formData.estado.trim()) {
+      newErrors.estado = "El estado es requerido";
+    }
+
+    if (!formData.localidad.trim()) {
+      newErrors.localidad = "La localidad es requerida";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validateForm()) {
+      return;
+    }
+
+    const datosParaEnviar = {
+      mes: formData.mes.trim(),
+      anio: parseInt(formData.anio.trim()),
+      estado: formData.estado.trim(),
+      localidad: formData.localidad.trim(),
+    };
+
+    const result = await createInventory(datosParaEnviar);
+
+    if (result.success) {
+      Alert.alert("¡Éxito!", result.message, [
+        {
+          text: "Aceptar",
+          onPress: () => router.back(),
+        },
+      ]);
+    } else {
+      Alert.alert(
+        "Error",
+        result.error || "Ocurrió un error al crear el inventario",
+      );
+    }
+  };
+
+  const mesesDelAnio = [
+    "Enero",
+    "Febrero",
+    "Marzo",
+    "Abril",
+    "Mayo",
+    "Junio",
+    "Julio",
+    "Agosto",
+    "Septiembre",
+    "Octubre",
+    "Noviembre",
+    "Diciembre",
+  ];
 
   return (
-      <View style={authStyles.container}>
-        <KeyboardAvoidingView
-          style={authStyles.container}
-          behavior={Platform.OS === 'android' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'android' ? 64 : 0}
+    <View style={formStyle.container}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 20}
+      >
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={formStyle.scrollContent}
         >
-          <ScrollView
-            contentContainerStyle={authStyles.scrollContent}
-            showsHorizontalScrollIndicator={false}
-            showsVerticalScrollIndicator={false}
-          >
-          
-          <Text style={authStyles.title}>NUEVO INVENTARIO</Text>
-          <View style={authStyles.imageContainer}>
-            <Image 
-              source={require("../../assets/images/inventario.png")}
-              style={formStyle.image}
-              contentFit="cover"
-            />
+          {/* Header con botón de regreso */}
+          <View style={formStyle.header}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={formStyle.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color={COLORS.primary} />
+            </TouchableOpacity>
+            <Text style={formStyle.headerTitle}>Nuevo Inventario</Text>
+            <View style={{ width: 40 }} />
           </View>
 
-          <View style={authStyles.formContainer}>
-            <View style={authStyles.inputContainer}>
-          
-              <Text style={formStyle.campTitle}>Periodo</Text>
-              <TextInput  
-                style={formStyle.textInput}
-                placeholder='Mes'
-                placeholderTextColor={COLORS.text}
-                value={formData.mes}
-                onChangeText={(value) => handleChange('mes', value)}
-                editable={!loading}
-              >
-              </TextInput>
+          {/* Imagen principal */}
+          <View style={formStyle.imageContainer}>
+            <Image
+              source={require("../../assets/images/inventario.png")}
+              style={formStyle.image}
+              contentFit="contain"
+              transition={200}
+            />
+            <View style={formStyle.imageOverlay}>
+              <Text style={formStyle.imageTitle}>Gestión de Inventarios</Text>
+              <Text style={formStyle.imageSubtitle}>
+                Complete los datos del nuevo inventario
+              </Text>
+            </View>
+          </View>
 
-              <Text style={formStyle.campTitle}>Año</Text>
-              <TextInput  
-                style={
-                  formStyle.textInput
-                }
-                placeholder='Año'
-                placeholderTextColor={COLORS.text}
-                value={formData.anio}
-                onChangeText={(value) => handleChange('anio', value)}
-                keyboardType="numeric"
-                maxLength={4}
-                editable={!loading}
-            >
-              </TextInput>
+          {/* Formulario */}
+          <View style={formStyle.formContainer}>
+            <View style={formStyle.formCard}>
+              <View style={formStyle.sectionHeader}>
+                <Ionicons
+                  name="calendar-outline"
+                  size={22}
+                  color={COLORS.primary}
+                />
+                <Text style={formStyle.sectionTitle}>
+                  Periodo del Inventario
+                </Text>
+              </View>
 
-              <Text style={formStyle.campTitle}>Ubicación</Text>
-              <TextInput  
-                style={
-                  formStyle.textInput
-                }
-                placeholder='Estado'
-                placeholderTextColor={COLORS.text}
-                value={formData.estado}
-                onChangeText={(value) => handleChange('estado', value)}
-                editable={!loading}
-              >
-              </TextInput>
+              {/* Campo Mes */}
+              <View style={formStyle.inputGroup}>
+                <Text style={formStyle.label}>Mes *</Text>
+                <View style={formStyle.inputWrapper}>
+                  <Ionicons
+                    name="calendar"
+                    size={20}
+                    color={COLORS.gray}
+                    style={formStyle.inputIcon}
+                  />
+                  <TextInput
+                    style={[
+                      formStyle.input,
+                      errors.mes && formStyle.inputError,
+                    ]}
+                    placeholder="Seleccione el mes"
+                    placeholderTextColor={COLORS.gray}
+                    value={formData.mes}
+                    onChangeText={(value) => handleChange("mes", value)}
+                    editable={!loading}
+                  />
+                </View>
+                {errors.mes && (
+                  <View style={formStyle.errorContainer}>
+                    <Ionicons
+                      name="alert-circle"
+                      size={14}
+                      color={COLORS.error}
+                    />
+                    <Text style={formStyle.errorText}>{errors.mes}</Text>
+                  </View>
+                )}
+              </View>
 
-              <Text style={formStyle.campTitle}>Localidad</Text>
-              <TextInput  
-                style={
-                  formStyle.textInput
-                }
-                placeholder='Localidad'
-                placeholderTextColor={COLORS.text}
-                value={formData.localidad}
-                onChangeText={(value) => handleChange('localidad', value)}
-                editable={!loading}
-              >
-              </TextInput>
+              {/* Campo Año */}
+              <View style={formStyle.inputGroup}>
+                <Text style={formStyle.label}>Año *</Text>
+                <View style={formStyle.inputWrapper}>
+                  <Ionicons
+                    name="time-outline"
+                    size={20}
+                    color={COLORS.gray}
+                    style={formStyle.inputIcon}
+                  />
+                  <TextInput
+                    style={[
+                      formStyle.input,
+                      errors.anio && formStyle.inputError,
+                    ]}
+                    placeholder="Ej: 2024"
+                    placeholderTextColor={COLORS.gray}
+                    value={formData.anio}
+                    onChangeText={(value) => handleChange("anio", value)}
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    editable={!loading}
+                  />
+                </View>
+                {errors.anio && (
+                  <View style={formStyle.errorContainer}>
+                    <Ionicons
+                      name="alert-circle"
+                      size={14}
+                      color={COLORS.error}
+                    />
+                    <Text style={formStyle.errorText}>{errors.anio}</Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={formStyle.divider} />
+
+              <View style={formStyle.sectionHeader}>
+                <Ionicons
+                  name="location-outline"
+                  size={22}
+                  color={COLORS.primary}
+                />
+                <Text style={formStyle.sectionTitle}>Ubicación</Text>
+              </View>
+
+              {/* Campo Estado */}
+              <View style={formStyle.inputGroup}>
+                <Text style={formStyle.label}>Estado *</Text>
+                <View style={formStyle.inputWrapper}>
+                  <Ionicons
+                    name="business-outline"
+                    size={20}
+                    color={COLORS.gray}
+                    style={formStyle.inputIcon}
+                  />
+                  <TextInput
+                    style={[
+                      formStyle.input,
+                      errors.estado && formStyle.inputError,
+                    ]}
+                    placeholder="Estado donde se realizará el inventario"
+                    placeholderTextColor={COLORS.gray}
+                    value={formData.estado}
+                    onChangeText={(value) => handleChange("estado", value)}
+                    editable={!loading}
+                  />
+                </View>
+                {errors.estado && (
+                  <View style={formStyle.errorContainer}>
+                    <Ionicons
+                      name="alert-circle"
+                      size={14}
+                      color={COLORS.error}
+                    />
+                    <Text style={formStyle.errorText}>{errors.estado}</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Campo Localidad */}
+              <View style={formStyle.inputGroup}>
+                <Text style={formStyle.label}>Localidad *</Text>
+                <View style={formStyle.inputWrapper}>
+                  <Ionicons
+                    name="pin-outline"
+                    size={20}
+                    color={COLORS.gray}
+                    style={formStyle.inputIcon}
+                  />
+                  <TextInput
+                    style={[
+                      formStyle.input,
+                      errors.localidad && formStyle.inputError,
+                    ]}
+                    placeholder="Ciudad o municipio"
+                    placeholderTextColor={COLORS.gray}
+                    value={formData.localidad}
+                    onChangeText={(value) => handleChange("localidad", value)}
+                    editable={!loading}
+                  />
+                </View>
+                {errors.localidad && (
+                  <View style={formStyle.errorContainer}>
+                    <Ionicons
+                      name="alert-circle"
+                      size={14}
+                      color={COLORS.error}
+                    />
+                    <Text style={formStyle.errorText}>{errors.localidad}</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Botón de envío */}
               <TouchableOpacity
-                  style={[
-                  formStyle.newInventoryButton,
-                  loading && { opacity: 0.5 }
+                style={[
+                  formStyle.submitButton,
+                  loading && formStyle.submitButtonDisabled,
                 ]}
-                  onPress={handleSubmit}
-                  disabled={loading}
-                >
-                <Text style={formStyle.buttonText}>
-                  {loading ? 'Creando...' : 'Crear Inventario'}</Text>
+                onPress={handleSubmit}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                {loading ? (
+                  <View style={formStyle.loadingContainer}>
+                    <Ionicons
+                      name="refresh"
+                      size={20}
+                      color="#FFF"
+                      style={formStyle.loadingIcon}
+                    />
+                    <Text style={formStyle.buttonText}>
+                      Creando inventario...
+                    </Text>
+                  </View>
+                ) : (
+                  <>
+                    <Ionicons
+                      name="add-circle-outline"
+                      size={22}
+                      color="#FFF"
+                    />
+                    <Text style={formStyle.buttonText}>Crear Inventario</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={formStyle.cancelButton}
+                onPress={() => router.back()}
+                disabled={loading}
+              >
+                <Text style={formStyle.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
-  )
-}
+  );
+};
 
-export default FormInventory
+export default FormInventory;
