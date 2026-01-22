@@ -1,11 +1,15 @@
-// app/(details)/[id].jsx - VERSIÓN CON DOS FABS Y EXPORTACIÓN
+// app/(details)/[id].jsx - VERSIÓN CON TEMA ICSI
+import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
+  FlatList,
   Linking,
   Modal,
+  RefreshControl,
   Text,
   TouchableOpacity,
   View,
@@ -19,6 +23,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { detailStyle } from "../../assets/styles/details.style";
 import { COLORS } from "../../constants/colors";
 import EquipmentList from "../components/EquipmentList";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function DetailsScreen() {
   const { id } = useLocalSearchParams();
@@ -60,7 +66,7 @@ export default function DetailsScreen() {
         });
       }
     } catch (error) {
-      // Error silencioso, se maneja en la UI
+      console.error("Error cargando inventario:", error);
     } finally {
       setLoading(false);
     }
@@ -82,10 +88,10 @@ export default function DetailsScreen() {
     try {
       const result = await deleteEquipment(inventoryId, equipmentId);
       if (!result.success) {
-        // Manejar error si es necesario
+        Alert.alert("Error", "No se pudo eliminar el equipo");
       }
     } catch (error) {
-      // Error ya manejado en el contexto
+      Alert.alert("Error", "Error al eliminar equipo");
     }
   };
 
@@ -112,10 +118,8 @@ export default function DetailsScreen() {
     setShowExportModal(true);
 
     try {
-      // Simular progreso inicial
       setExportProgress(10);
 
-      // 1. Llamar a la función de Firebase
       const functionUrl = `https://us-central1-${process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID}.cloudfunctions.net/exportInventory`;
 
       setExportProgress(30);
@@ -141,10 +145,10 @@ export default function DetailsScreen() {
         const downloadUrl = data.data?.exportacion?.downloadUrl;
 
         if (!downloadUrl) {
+          Alert.alert("Error", "No se recibió URL de descarga");
           return;
         }
 
-        // VALIDAR QUE SEA UNA URL VÁLIDA
         if (
           typeof downloadUrl !== "string" ||
           !downloadUrl.startsWith("http")
@@ -153,7 +157,7 @@ export default function DetailsScreen() {
           Alert.alert(
             "Error",
             "La URL de descarga no es válida. Verifica en Firebase Storage.",
-            [{ text: "OK" }]
+            [{ text: "OK" }],
           );
           return;
         }
@@ -164,6 +168,7 @@ export default function DetailsScreen() {
         setShowExportModal(false);
       }
     } catch (error) {
+      Alert.alert("Error", "Error de conexión al exportar");
       setShowExportModal(false);
     } finally {
       setExportProgress(100);
@@ -173,6 +178,183 @@ export default function DetailsScreen() {
       }, 1000);
     }
   };
+
+  // ================== COMPONENTE HEADER PROFESIONAL SIMPLIFICADO ==================
+  const ProfessionalHeader = () => {
+    if (!inventory) return null;
+
+    const getStatusConfig = () => {
+      const status = inventory.estado?.toLowerCase();
+      switch (status) {
+        case "completado":
+          return {
+            color: "#10B981",
+            icon: "checkmark-circle",
+            label: "Completado",
+            bgColor: "rgba(16, 185, 129, 0.1)",
+          };
+        case "en_progreso":
+        case "en progreso":
+          return {
+            color: "#F59E0B",
+            icon: "sync-circle",
+            label: "En Progreso",
+            bgColor: "rgba(245, 158, 11, 0.1)",
+          };
+        case "pendiente":
+          return {
+            color: "#6B7280",
+            icon: "time",
+            label: "Pendiente",
+            bgColor: "rgba(107, 114, 128, 0.1)",
+          };
+        default:
+          return {
+            color: "#6B7280",
+            icon: "help-circle",
+            label: "Desconocido",
+            bgColor: "rgba(107, 114, 128, 0.1)",
+          };
+      }
+    };
+
+    const statusConfig = getStatusConfig();
+
+    return (
+      <View style={detailStyle.headerContainer}>
+        <LinearGradient
+          colors={[COLORS.primary, "#C8102E"]} // Rojo ICSI
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={detailStyle.gradientCard}
+        >
+          <View style={detailStyle.headerContent}>
+            {/* Título y botón de exportar */}
+            <View style={detailStyle.headerTop}>
+              <View style={detailStyle.titleWrapper}>
+                <Ionicons name="cube-outline" size={28} color="#FFFFFF" />
+                <Text style={detailStyle.inventoryTitle}>
+                  {inventory.mes} {inventory.anio}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  detailStyle.exportButton,
+                  (exporting || equipments.length === 0) &&
+                    detailStyle.exportButtonDisabled,
+                ]}
+                onPress={exportInventory}
+                disabled={exporting || equipments.length === 0}
+              >
+                {exporting ? (
+                  <ActivityIndicator size="small" color={COLORS.primary} />
+                ) : (
+                  <>
+                    <Ionicons
+                      name="download-outline"
+                      size={20}
+                      color={COLORS.primary}
+                    />
+                    <Text style={detailStyle.exportButtonText}>Exportar</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* Línea divisoria */}
+            <View style={detailStyle.headerDivider} />
+
+            {/* Información en 2 filas (eliminadas estadísticas) */}
+            <View style={detailStyle.infoContainer}>
+              {/* Fila 1: Ubicación y Estado */}
+              <View style={detailStyle.infoRow}>
+                <View style={detailStyle.infoItem}>
+                  <Ionicons name="location-outline" size={18} color="#FFD6D6" />
+                  <View style={detailStyle.infoContent}>
+                    <Text style={detailStyle.infoLabel}>Ubicación</Text>
+                    <Text style={detailStyle.infoValue}>
+                      {inventory.localidad || "No especificada"}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={detailStyle.infoItem}>
+                  <Ionicons
+                    name={statusConfig.icon}
+                    size={18}
+                    color="#FFD6D6"
+                  />
+                  <View style={detailStyle.infoContent}>
+                    <Text style={detailStyle.infoLabel}>Estado</Text>
+                    <Text style={detailStyle.infoValue}>
+                      {inventory.localidad}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Fila 2: Creado y Total Equipos */}
+              <View style={detailStyle.infoRow}>
+                <View style={detailStyle.infoItem}>
+                  <Ionicons name="calendar-outline" size={18} color="#FFD6D6" />
+                  <View style={detailStyle.infoContent}>
+                    <Text style={detailStyle.infoLabel}>Creado</Text>
+                    <Text style={detailStyle.infoValue}>
+                      {inventory.createdAt
+                        ?.toDate?.()
+                        ?.toLocaleDateString("es-ES") ||
+                        inventory.fechaCreacion?.toLocaleDateString("es-ES") ||
+                        "No disponible"}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={detailStyle.infoItem}>
+                  <Ionicons
+                    name="hardware-chip-outline"
+                    size={18}
+                    color="#FFD6D6"
+                  />
+                  <View style={detailStyle.infoContent}>
+                    <Text style={detailStyle.infoLabel}>Total Equipos</Text>
+                    <Text style={detailStyle.infoValue}>
+                      {inventory.totalEquipos || equipments.length || 0}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </View>
+        </LinearGradient>
+      </View>
+    );
+  };
+
+  // ================== RENDER ITEM PARA FLATLIST ==================
+  const renderContent = () => (
+    <View style={detailStyle.equipmentSection}>
+      <View style={detailStyle.sectionHeader}>
+        <Text style={detailStyle.sectionTitle}>Equipos Registrados</Text>
+        <Text style={detailStyle.sectionSubtitle}>
+          {equipments.length} {equipments.length === 1 ? "equipo" : "equipos"}{" "}
+          en total
+        </Text>
+      </View>
+
+      <EquipmentList
+        equipments={equipments}
+        loading={equipmentsLoading}
+        inventoryId={id}
+        onRefresh={onRefresh}
+        onPressEquipment={handleViewEquipment}
+        onDeleteEquipment={handleDeleteEquipment}
+      />
+
+      {/* Espacio al final */}
+      <View style={{ height: 40 }} />
+    </View>
+  );
 
   // ================== MODAL DE EXPORTACIÓN ==================
   const ExportModal = () => (
@@ -265,67 +447,59 @@ export default function DetailsScreen() {
     );
   }
 
-  // ================== RENDER PRINCIPAL ==================
+  // ================== RENDER PRINCIPAL CON FLATLIST ==================
   return (
     <View style={detailStyle.container}>
-      {/* Header del inventario */}
-      <Text style={detailStyle.title}>
-        {inventory.mes} {inventory.anio}
-      </Text>
-      <Text style={detailStyle.info}>Localidad: {inventory.localidad}</Text>
-      <Text style={detailStyle.info}>Estado: {inventory.estado}</Text>
-      <Text style={detailStyle.info}>
-        Total equipos: {inventory.totalEquipos || equipments.length}
-      </Text>
-
-      {/* Sección de equipos */}
-      <View style={detailStyle.equipmentSection}>
-        <View style={detailStyle.sectionHeader}>
-          <Text style={detailStyle.sectionTitle}>Equipos registrados</Text>
-          <TouchableOpacity
-            style={detailStyle.filterButton}
-            onPress={() => {
-              /* Implementar filtros */
-            }}
-          >
-            <Ionicons name="filter-outline" size={20} color={COLORS.primary} />
-          </TouchableOpacity>
-        </View>
-
-        <EquipmentList
-          equipments={equipments}
-          loading={equipmentsLoading}
-          inventoryId={id}
-          onRefresh={onRefresh}
-          onPressEquipment={handleViewEquipment}
-          onDeleteEquipment={handleDeleteEquipment}
-        />
-      </View>
-
-      {/* ============== BOTONES FLOTANTES ============== */}
-      <View style={detailStyle.fabContainer}>
-        {/* Botón flotante para EXPORTAR (ARRIBA) */}
-        <TouchableOpacity
-          style={[detailStyle.fab, detailStyle.fabTop]}
-          onPress={exportInventory}
-          disabled={exporting || equipments.length === 0}
-          activeOpacity={0.8}
-        >
-          <Ionicons
-            name={exporting ? "refresh" : "download"}
-            size={24}
-            color="#fff"
+      <FlatList
+        data={[{ key: "content" }]}
+        renderItem={renderContent}
+        ListHeaderComponent={<ProfessionalHeader />}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
           />
-        </TouchableOpacity>
+        }
+        contentContainerStyle={{
+          paddingBottom: 40,
+        }}
+        keyboardShouldPersistTaps="handled"
+      />
 
-        {/* Botón flotante para AGREGAR equipo (ABAJO) */}
+      {/* ============== BOTONES FLOTANTES ==============*/}
+      <View style={detailStyle.fabContainer}>
+        {/* Botón flotante para AGREGAR equipo (IZQUIERDA) */}
         <TouchableOpacity
-          style={[detailStyle.fab, detailStyle.fabBottom]}
+          style={[detailStyle.fab, detailStyle.fabAdd, detailStyle.fabLeft]}
           onPress={() => router.push(`/(forms)/pcForm?inventoryId=${id}`)}
           activeOpacity={0.8}
         >
-          <Ionicons name="add" size={30} color="#fff" />
+          <Ionicons name="add" size={28} color="#fff" />
         </TouchableOpacity>
+
+        {/* Botón flotante para EXPORTAR (DERECHA) */}
+        {equipments.length > 0 && (
+          <TouchableOpacity
+            style={[
+              detailStyle.fab,
+              detailStyle.fabExport,
+              detailStyle.fabRight,
+              exporting && detailStyle.fabDisabled,
+            ]}
+            onPress={exportInventory}
+            disabled={exporting}
+            activeOpacity={0.8}
+          >
+            {exporting ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="download-outline" size={24} color="#fff" />
+            )}
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Modal de exportación */}

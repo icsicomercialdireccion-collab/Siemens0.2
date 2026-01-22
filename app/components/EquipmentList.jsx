@@ -1,29 +1,36 @@
 // app/components/EquipmentList.jsx
-import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, Text, TouchableOpacity, View } from 'react-native';
-import { ListStyle } from '../../assets/styles/list.style';
-import { COLORS } from '../../constants/colors';
+import { Ionicons } from "@expo/vector-icons";
+import React from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { ListStyle } from "../../assets/styles/list.style";
+import { COLORS } from "../../constants/colors";
 
-
-export default function EquipmentList({ 
-  equipments, 
-  loading, 
+export default function EquipmentList({
+  equipments,
+  loading,
   inventoryId,
   onRefresh,
   onPressEquipment,
-  onDeleteEquipment 
+  onDeleteEquipment,
 }) {
   // Función para renderizar cada equipo
   const renderEquipmentItem = ({ item }) => (
     <TouchableOpacity
       style={ListStyle.equipmentCard}
       onPress={() => {
-        console.log('📱 Presionando equipo:', {
+        console.log("📱 Presionando equipo:", {
           equipmentId: item.id,
-          inventoryId: inventoryId
+          inventoryId: inventoryId,
         });
-        
+
         if (onPressEquipment) {
           // PASA AMBOS PARÁMETROS
           onPressEquipment(item, inventoryId);
@@ -37,12 +44,14 @@ export default function EquipmentList({
           <Ionicons name="barcode-outline" size={20} color={COLORS.primary} />
           <Text style={ListStyle.serialText}>{item.serial}</Text>
         </View>
-        
+
         {/* Estado del equipo */}
-        <View style={[
-          ListStyle.statusBadge,
-          { backgroundColor: getStatusColor(item.estado) }
-        ]}>
+        <View
+          style={[
+            ListStyle.statusBadge,
+            { backgroundColor: getStatusColor(item.estado) },
+          ]}
+        >
           <Text style={ListStyle.statusText}>
             {getStatusLabel(item.estado)}
           </Text>
@@ -53,9 +62,9 @@ export default function EquipmentList({
       <View style={ListStyle.cardBody}>
         <View style={ListStyle.infoRow}>
           <Ionicons name="cube-outline" size={16} color="#666" />
-          <Text style={ListStyle.typeText}>{item.tipo || 'computadora'}</Text>
+          <Text style={ListStyle.typeText}>{item.tipo || "computadora"}</Text>
         </View>
-        
+
         {item.observaciones ? (
           <View style={ListStyle.observationsContainer}>
             <Ionicons name="document-text-outline" size={14} color="#888" />
@@ -64,7 +73,7 @@ export default function EquipmentList({
             </Text>
           </View>
         ) : null}
-        
+
         {/* Imagen del equipo (si existe) */}
         {item.imagenUrl ? (
           <View style={ListStyle.imageContainer}>
@@ -93,16 +102,9 @@ export default function EquipmentList({
             {formatDate(item.createdAt?.toDate?.() || new Date())}
           </Text>
         </View>
-        
+
         {/* Botones de acción */}
         <View style={ListStyle.actionsContainer}>
-          <TouchableOpacity
-            style={ListStyle.actionButton}
-            onPress={() => onPressEquipment && onPressEquipment(item)}
-          >
-            <Ionicons name="eye-outline" size={18} color={COLORS.primary} />
-          </TouchableOpacity>
-          
           <TouchableOpacity
             style={[ListStyle.actionButton, ListStyle.deleteButton]}
             onPress={() => handleDeleteEquipment(item)}
@@ -121,16 +123,16 @@ export default function EquipmentList({
       `¿Estás seguro de eliminar el equipo ${equipment.serial}?`,
       [
         { text: "Cancelar", style: "cancel" },
-        { 
-          text: "Eliminar", 
+        {
+          text: "Eliminar",
           style: "destructive",
           onPress: () => {
             if (onDeleteEquipment) {
               onDeleteEquipment(inventoryId, equipment.id);
             }
-          }
-        }
-      ]
+          },
+        },
+      ],
     );
   };
 
@@ -176,30 +178,39 @@ export default function EquipmentList({
 
 // Funciones auxiliares
 const getStatusColor = (status) => {
-  switch(status) {
-    case 'nuevo': return '#d4edda';
-    case 'usado': return '#fff3cd';
-    case 'reparacion': return '#cce5ff';
-    case 'danado': return '#f8d7da';
-    default: return '#e9ecef';
+  switch (status) {
+    case "nuevo":
+      return "#d4edda";
+    case "usado":
+      return "#fff3cd";
+    case "reparacion":
+      return "#cce5ff";
+    case "danado":
+      return "#f8d7da";
+    default:
+      return "#e9ecef";
   }
 };
 
 const getStatusLabel = (status) => {
-  switch(status) {
-    case 'nuevo': return 'Nuevo';
-    case 'usado': return 'Usado';
-    case 'reparacion': return 'En reparación';
-    case 'danado': return 'Dañado';
-    default: return status;
+  switch (status) {
+    case "nuevo":
+      return "Nuevo";
+    case "usado":
+      return "Usado";
+    case "reparacion":
+      return "En reparación";
+    case "danado":
+      return "Dañado";
+    default:
+      return status;
   }
 };
 
 const formatDate = (date) => {
-  return date.toLocaleDateString('es-ES', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric'
+  return date.toLocaleDateString("es-ES", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
   });
 };
-
