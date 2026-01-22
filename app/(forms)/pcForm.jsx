@@ -22,7 +22,7 @@ import { COLORS } from "../../constants/colors";
 import { useEquipment } from "../contexts/EquipmentContext";
 
 // ✅ IMPORTACIÓN CORRECTA PARA SDK 54
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView, useCameraPermissions } from "expo-camera";
 
 export default function PcForm() {
   const { inventoryId } = useLocalSearchParams();
@@ -53,9 +53,9 @@ export default function PcForm() {
   const handleBarCodeScanned = ({ type, data }) => {
     if (!scanned) {
       setScanned(true);
-      console.log('📦 Código escaneado:', { type, data });
-      
-      setFormData(prev => ({
+      console.log("📦 Código escaneado:", { type, data });
+
+      setFormData((prev) => ({
         ...prev,
         serial: data,
       }));
@@ -79,12 +79,12 @@ export default function PcForm() {
           Alert.alert(
             "Permiso requerido",
             "Necesitas permitir el acceso a la cámara para escanear",
-            [{ text: "OK" }]
+            [{ text: "OK" }],
           );
           return;
         }
       }
-      
+
       setScanned(false);
       setShowScanner(true);
     } catch (error) {
@@ -99,7 +99,7 @@ export default function PcForm() {
   };
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [field]: value,
     }));
@@ -108,10 +108,14 @@ export default function PcForm() {
   // FUNCIÓN PARA SELECCIONAR IMAGEN
   const pickImage = async () => {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (status !== "granted") {
-        Alert.alert("Permiso denegado", "Necesitas permitir acceso a la galería");
+        Alert.alert(
+          "Permiso denegado",
+          "Necesitas permitir acceso a la galería",
+        );
         return;
       }
 
@@ -124,7 +128,7 @@ export default function PcForm() {
 
       if (!result.canceled && result.assets[0]) {
         const selectedImage = result.assets[0];
-        setFormData(prev => ({
+        setFormData((prev) => ({
           ...prev,
           imagen: selectedImage.uri,
         }));
@@ -142,7 +146,10 @@ export default function PcForm() {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
 
       if (status !== "granted") {
-        Alert.alert("Permiso denegado", "Necesitas permitir acceso a la cámara");
+        Alert.alert(
+          "Permiso denegado",
+          "Necesitas permitir acceso a la cámara",
+        );
         return;
       }
 
@@ -154,7 +161,7 @@ export default function PcForm() {
 
       if (!result.canceled && result.assets[0]) {
         const photo = result.assets[0];
-        setFormData(prev => ({
+        setFormData((prev) => ({
           ...prev,
           imagen: photo.uri,
         }));
@@ -302,10 +309,10 @@ export default function PcForm() {
                   style={formEquipmentStyle.picker}
                   enabled={!loading}
                 >
-                  <Picker.Item label="🆕 Equipo Nuevo" value="nuevo" />
-                  <Picker.Item label="🔄 Equipo Usado" value="usado" />
-                  <Picker.Item label="🔧 En Reparación" value="reparacion" />
-                  <Picker.Item label="⚡ Dañado" value="danado" />
+                  <Picker.Item label="Equipo Nuevo" value="nuevo" />
+                  <Picker.Item label="Equipo Usado" value="usado" />
+                  <Picker.Item label="En Reparación" value="reparacion" />
+                  <Picker.Item label="Dañado" value="danado" />
                 </Picker>
               </View>
             </View>
@@ -475,7 +482,7 @@ export default function PcForm() {
             <Text style={formEquipmentStyle.scannerTitle}>ESCANEAR CÓDIGO</Text>
             <View style={{ width: 40 }} />
           </View>
-          
+
           {/* ✅ USAR CameraView EN LUGAR DE Camera */}
           {permission?.granted ? (
             <View style={formEquipmentStyle.cameraContainer}>
@@ -485,45 +492,50 @@ export default function PcForm() {
                 facing="back"
                 barcodeScannerSettings={{
                   barcodeTypes: [
-                    'qr',
-                    'ean13',
-                    'ean8',
-                    'upc_a',
-                    'upc_e',
-                    'code39',
-                    'code93',
-                    'code128',
-                    'codabar',
-                    'itf14'
-                  ]
+                    "qr",
+                    "ean13",
+                    "ean8",
+                    "upc_a",
+                    "upc_e",
+                    "code39",
+                    "code93",
+                    "code128",
+                    "codabar",
+                    "itf14",
+                  ],
                 }}
                 onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
               >
                 {/* OVERLAY */}
                 <View style={formEquipmentStyle.scannerOverlay}>
-                  <View style={[formEquipmentStyle.scannerFrame, {
-                    width: screenWidth * 0.7,
-                    height: screenWidth * 0.7,
-                  }]}>
+                  <View
+                    style={[
+                      formEquipmentStyle.scannerFrame,
+                      {
+                        width: screenWidth * 0.7,
+                        height: screenWidth * 0.7,
+                      },
+                    ]}
+                  >
                     <View style={formEquipmentStyle.cornerTL} />
                     <View style={formEquipmentStyle.cornerTR} />
                     <View style={formEquipmentStyle.cornerBL} />
                     <View style={formEquipmentStyle.cornerBR} />
-                    
-                    {!scanned && (
-                      <View style={formEquipmentStyle.scanLine} />
-                    )}
+
+                    {!scanned && <View style={formEquipmentStyle.scanLine} />}
                   </View>
-                  
+
                   <View style={formEquipmentStyle.scannerInstructions}>
                     <Text style={formEquipmentStyle.instructionsText}>
-                      {scanned ? '✅ Código detectado...' : 'Apunta el código de barras dentro del marco'}
+                      {scanned
+                        ? "✅ Código detectado..."
+                        : "Apunta el código de barras dentro del marco"}
                     </Text>
-                    <Ionicons 
-                      name={scanned ? "checkmark-circle" : "scan-outline"} 
-                      size={30} 
-                      color="#fff" 
-                      style={formEquipmentStyle.scanIcon} 
+                    <Ionicons
+                      name={scanned ? "checkmark-circle" : "scan-outline"}
+                      size={30}
+                      color="#fff"
+                      style={formEquipmentStyle.scanIcon}
                     />
                   </View>
                 </View>
@@ -535,15 +547,15 @@ export default function PcForm() {
               <Text style={styles.loadingText}>Verificando permisos...</Text>
             </View>
           )}
-          
+
           {/* FOOTER */}
           <View style={formEquipmentStyle.scannerFooter}>
             <Text style={formEquipmentStyle.scannerHint}>
-              {scanned 
-                ? 'Procesando código...' 
-                : 'El scanner se detendrá automáticamente al detectar un código'}
+              {scanned
+                ? "Procesando código..."
+                : "El scanner se detendrá automáticamente al detectar un código"}
             </Text>
-            
+
             <TouchableOpacity
               style={formEquipmentStyle.manualEntryButton}
               onPress={closeScanner}
@@ -563,12 +575,12 @@ export default function PcForm() {
 const styles = StyleSheet.create({
   centered: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#000',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#000",
   },
   loadingText: {
-    color: '#fff',
+    color: "#fff",
     marginTop: 10,
     fontSize: 16,
   },
