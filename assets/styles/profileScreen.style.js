@@ -79,13 +79,12 @@ export const profileStyle = StyleSheet.create({
     fontWeight: "bold",
     color: "#333",
     marginBottom: 5,
-    width: 80,
+    flex: 1,
   },
   userEmail: {
     fontSize: 16,
     color: "#666",
     marginBottom: 15,
-    width: 145,
   },
   roleBadge: {
     flexDirection: "row",
@@ -105,7 +104,7 @@ export const profileStyle = StyleSheet.create({
   infoSection: {
     paddingHorizontal: 20,
     marginBottom: 25,
-    width: width,
+    flex: 1,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -117,6 +116,7 @@ export const profileStyle = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     color: "#333",
+    flex: 1,
   },
   infoCard: {
     backgroundColor: "#fff",
