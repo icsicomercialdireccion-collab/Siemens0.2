@@ -1,4 +1,4 @@
-// app.config.js - VERSIÓN CORREGIDA
+// app.config.js - VERSIÓN CORREGIDA PARA react-native-image-picker
 import "dotenv/config";
 
 export default {
@@ -13,37 +13,27 @@ export default {
 
     owner: "martin.lara",
 
-    // ✅ PLUGINS CORREGIDOS - ELIMINA expo-camera de aquí
+    splash: {
+      image: "./assets/images/splash.png", // Imagen del splash (1242x2436)
+      resizeMode: "contain",
+      backgroundColor: "#ffffff",
+      // Color de fondo del splash
+    },
+
+    // ✅ PLUGINS SIMPLIFICADOS - SIN expo-media-library
     plugins: [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          image: "./assets/images/splash-icon.png",
-          resizeMode: "contain",
-          backgroundColor: "#ffffff",
+          image: "./assets/images/icon.png",
         },
       ],
-      [
-        "expo-image-picker",
-        {
-          photosPermission: "La app necesita acceso a tus fotos.",
-          cameraPermission:
-            "La app necesita acceso a la cámara para tomar fotos.",
-        },
-      ],
-      // ❌ REMOVER expo-camera de aquí (ya viene incluido en Expo)
-      [
-        "expo-media-library",
-        {
-          photosPermission: "Permite guardar archivos en tu galería.",
-          savePhotosPermission: "Permite guardar archivos Excel.",
-          isAccessMediaLocationEnabled: true,
-        },
-      ],
+      // ❌ ELIMINAR expo-media-library de aquí (ya no lo usas)
+      // react-native-image-picker NO necesita plugin en app.config.js
     ],
 
-    // ✅ AGREGAR CONFIGURACIÓN DE PERMISOS EN EL NIVEL PRINCIPAL
+    // ✅ PERMISOS SIMPLIFICADOS
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.siemens.inventario02",
@@ -52,33 +42,28 @@ export default {
           "Esta app usa la cámara para escanear códigos de barras y tomar fotos.",
         NSPhotoLibraryUsageDescription:
           "Esta app necesita acceso a la galería para seleccionar fotos.",
-        NSPhotoLibraryAddUsageDescription:
-          "Esta app necesita permiso para guardar fotos.",
+        // ❌ ELIMINAR NSPhotoLibraryAddUsageDescription (solo si guardas fotos)
+        // ❌ ELIMINAR NSMicrophoneUsageDescription (solo si usas video/audio)
       },
-      // ✅ Permisos para iOS
-      cameraPermission:
-        "Permite que $(PRODUCT_NAME) acceda a tu cámara para escanear códigos de barras y tomar fotos.",
     },
 
     android: {
       adaptiveIcon: {
-        foregroundImage: "./assets/images/adaptive-icon.png",
-        backgroundColor: "#E6F4FE",
+        foregroundImage: "./assets/images/icon.png",
+        backgroundColor: "#0066A1",
       },
       package: "com.siemens.inventario02",
       permissions: [
-        "android.permission.CAMERA",
+        "android.permission.CAMERA", // Para escanear y tomar fotos
+        // Para react-native-image-picker (solo lectura):
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.RECORD_AUDIO", // Opcional si usas video
+        // ❌ ELIMINAR WRITE_EXTERNAL_STORAGE (solo si guardas fotos)
+        // ❌ ELIMINAR RECORD_AUDIO (solo si usas video)
+        // Para Android 13+:
+        "android.permission.READ_MEDIA_IMAGES",
       ],
-      // ✅ Permisos para Android
       cameraPermission:
         "Permite que $(PRODUCT_NAME) acceda a tu cámara para escanear códigos de barras y tomar fotos.",
-    },
-
-    web: {
-      favicon: "./assets/images/favicon.png",
     },
 
     extra: {
