@@ -1,7 +1,5 @@
-// app/(forms)/pcForm.jsx - VERSIÓN CORREGIDA Y SIMPLIFICADA
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
-import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import {
@@ -21,7 +19,10 @@ import { formEquipmentStyle } from "../../assets/styles/formEquitpment.style";
 import { COLORS } from "../../constants/colors";
 import { useEquipment } from "../contexts/EquipmentContext";
 
-// ✅ IMPORTACIÓN CORRECTA PARA SDK 54
+// ✅ USAR expo-document-picker (más estable para Expo)
+import * as DocumentPicker from "expo-document-picker";
+
+// ✅ IMPORTACIÓN PARA SDK 54
 import { CameraView, useCameraPermissions } from "expo-camera";
 
 export default function PcForm() {
@@ -31,7 +32,7 @@ export default function PcForm() {
 
   const { width: screenWidth } = useWindowDimensions();
 
-  // ✅ HOOK DE PERMISOS (SDK 54+)
+  // ✅ HOOK DE PERMISOS
   const [permission, requestPermission] = useCameraPermissions();
 
   // Estados del formulario
@@ -47,7 +48,12 @@ export default function PcForm() {
   const [scanned, setScanned] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
 
-  const cameraRef = useRef(null);
+  // Estado para modal de cámara de fotos
+  const [showCameraModal, setShowCameraModal] = useState(false);
+  const [cameraType, setCameraType] = useState("back");
+
+  const scannerCameraRef = useRef(null);
+  const photoCameraRef = useRef(null);
 
   // ✅ MANEJAR CÓDIGO ESCANEADO
   const handleBarCodeScanned = ({ type, data }) => {
@@ -69,10 +75,9 @@ export default function PcForm() {
     }
   };
 
-  // ✅ ABRIR SCANNER CON VERIFICACIÓN DE PERMISOS
+  // ✅ ABRIR SCANNER
   const openScanner = async () => {
     try {
-      // Si no hay permisos, solicitarlos
       if (!permission?.granted) {
         const result = await requestPermission();
         if (!result.granted) {
@@ -105,34 +110,39 @@ export default function PcForm() {
     }));
   };
 
-  // FUNCIÓN PARA SELECCIONAR IMAGEN
+  // ✅ FUNCIÓN PARA SELECCIONAR IMAGEN CON expo-document-picker
   const pickImage = async () => {
     try {
-      const { status } =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (status !== "granted") {
-        Alert.alert(
-          "Permiso denegado",
-          "Necesitas permitir acceso a la galería",
-        );
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["image/png", "image/jpeg", "image/jpg"],
+        copyToCacheDirectory: true,
+        multiple: false,
       });
 
-      if (!result.canceled && result.assets[0]) {
+      console.log("Resultado completo:", JSON.stringify(result, null, 2));
+
+      // ✅ CORREGIDO: Chequear "canceled" en lugar de "type"
+      if (!result.canceled && result.assets && result.assets.length > 0) {
         const selectedImage = result.assets[0];
+        console.log(
+          "✅ Imagen seleccionada correctamente:",
+          selectedImage.name,
+        );
+
         setFormData((prev) => ({
           ...prev,
           imagen: selectedImage.uri,
         }));
         setImagePreview(selectedImage.uri);
+
+        Alert.alert(
+          "✅ Imagen seleccionada",
+          `"${selectedImage.name}" cargada correctamente`,
+          [{ text: "OK" }],
+        );
+      } else {
+        console.log("❌ Usuario canceló o no seleccionó");
+        // No hacer nada si el usuario canceló
       }
     } catch (error) {
       console.error("❌ Error seleccionando imagen:", error);
@@ -140,37 +150,61 @@ export default function PcForm() {
     }
   };
 
-  // FUNCIÓN PARA TOMAR FOTO
+  // ✅ FUNCIÓN PARA TOMAR FOTO
   const takePhoto = async () => {
     try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-
-      if (status !== "granted") {
-        Alert.alert(
-          "Permiso denegado",
-          "Necesitas permitir acceso a la cámara",
-        );
-        return;
+      if (!permission?.granted) {
+        const result = await requestPermission();
+        if (!result.granted) {
+          Alert.alert(
+            "Permiso denegado",
+            "Necesitas permitir acceso a la cámara",
+          );
+          return;
+        }
       }
 
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
+      setShowCameraModal(true);
+    } catch (error) {
+      console.error("❌ Error accediendo a la cámara:", error);
+      Alert.alert("Error", "No se pudo acceder a la cámara");
+    }
+  };
 
-      if (!result.canceled && result.assets[0]) {
-        const photo = result.assets[0];
+  // ✅ FUNCIÓN PARA CAPTURAR FOTO
+  const capturePhoto = async () => {
+    if (photoCameraRef.current) {
+      try {
+        const photoOptions = {
+          quality: 0.7,
+          base64: false,
+          exif: false,
+        };
+
+        const photo =
+          await photoCameraRef.current.takePictureAsync(photoOptions);
+        setShowCameraModal(false);
+
         setFormData((prev) => ({
           ...prev,
           imagen: photo.uri,
         }));
         setImagePreview(photo.uri);
+
+        Alert.alert("Foto tomada", "Foto guardada exitosamente", [
+          { text: "OK" },
+        ]);
+      } catch (error) {
+        console.error("Error tomando foto:", error);
+        Alert.alert("Error", "No se pudo tomar la foto");
+        setShowCameraModal(false);
       }
-    } catch (error) {
-      console.error("❌ Error tomando foto:", error);
-      Alert.alert("Error", "No se pudo tomar la foto");
     }
+  };
+
+  // ✅ FUNCIÓN PARA CAMBIAR TIPO DE CÁMARA
+  const toggleCameraType = () => {
+    setCameraType((current) => (current === "back" ? "front" : "back"));
   };
 
   const handleSubmit = async () => {
@@ -462,7 +496,7 @@ export default function PcForm() {
         </View>
       </ScrollView>
 
-      {/* ✅ MODAL DEL SCANNER SIMPLIFICADO */}
+      {/* ✅ MODAL DEL SCANNER */}
       <Modal
         visible={showScanner}
         animationType="slide"
@@ -483,11 +517,11 @@ export default function PcForm() {
             <View style={{ width: 40 }} />
           </View>
 
-          {/* ✅ USAR CameraView EN LUGAR DE Camera */}
+          {/* ✅ USAR CameraView */}
           {permission?.granted ? (
             <View style={formEquipmentStyle.cameraContainer}>
               <CameraView
-                ref={cameraRef}
+                ref={scannerCameraRef}
                 style={StyleSheet.absoluteFillObject}
                 facing="back"
                 barcodeScannerSettings={{
@@ -567,11 +601,76 @@ export default function PcForm() {
           </View>
         </View>
       </Modal>
+
+      {/* ✅ MODAL PARA TOMAR FOTO CON CÁMARA */}
+      <Modal
+        visible={showCameraModal}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        statusBarTranslucent={true}
+        onRequestClose={() => setShowCameraModal(false)}
+      >
+        <View style={styles.cameraModalContainer}>
+          {/* HEADER */}
+          <View style={styles.cameraHeader}>
+            <TouchableOpacity
+              style={styles.cameraBackButton}
+              onPress={() => setShowCameraModal(false)}
+            >
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.cameraTitle}>TOMAR FOTO</Text>
+            <TouchableOpacity
+              style={styles.flipCameraButton}
+              onPress={toggleCameraType}
+            >
+              <Ionicons name="camera-reverse-outline" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          {/* CÁMARA */}
+          <View style={styles.cameraWrapper}>
+            {permission?.granted ? (
+              <CameraView
+                ref={photoCameraRef}
+                style={StyleSheet.absoluteFillObject}
+                facing={cameraType}
+              />
+            ) : (
+              <View style={styles.permissionContainer}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+                <Text style={styles.permissionText}>
+                  Verificando permisos...
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* CONTROLES */}
+          <View style={styles.cameraControls}>
+            <View style={styles.captureButtonContainer}>
+              <TouchableOpacity
+                style={styles.captureButton}
+                onPress={capturePhoto}
+              >
+                <View style={styles.captureButtonInner} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* INSTRUCCIONES */}
+          <View style={styles.cameraInstructions}>
+            <Text style={styles.instructionsText}>
+              Toca el círculo blanco para tomar la foto
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
 
-// Estilos simplificados
+// ✅ ESTILOS
 const styles = StyleSheet.create({
   centered: {
     flex: 1,
@@ -583,5 +682,91 @@ const styles = StyleSheet.create({
     color: "#fff",
     marginTop: 10,
     fontSize: 16,
+  },
+
+  // Estilos para el modal de cámara
+  cameraModalContainer: {
+    flex: 1,
+    backgroundColor: "#000",
+  },
+  cameraHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 20,
+    backgroundColor: "rgba(0,0,0,0.7)",
+  },
+  cameraBackButton: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cameraTitle: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  flipCameraButton: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cameraWrapper: {
+    flex: 1,
+    position: "relative",
+  },
+  permissionContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#000",
+  },
+  permissionText: {
+    color: "#fff",
+    marginTop: 10,
+    fontSize: 16,
+  },
+  cameraControls: {
+    position: "absolute",
+    bottom: 100,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  captureButtonContainer: {
+    alignItems: "center",
+  },
+  captureButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 4,
+    borderColor: "rgba(255, 255, 255, 0.5)",
+  },
+  captureButtonInner: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#fff",
+  },
+  cameraInstructions: {
+    position: "absolute",
+    bottom: 40,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  instructionsText: {
+    color: "#fff",
+    fontSize: 14,
+    textAlign: "center",
+    opacity: 0.8,
   },
 });
