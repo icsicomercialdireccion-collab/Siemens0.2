@@ -1,197 +1,210 @@
-// contexts/InventoryContext.jsx
-import { addDoc, collection, getDocs, query, serverTimestamp, where } from 'firebase/firestore';
-import { createContext, useContext, useEffect, useState } from 'react';
-import { auth, db } from '../../firebase/FirebaseConfig';
+// contexts/InventoryContext.jsx - SIN BUCLE
+import {
+  addDoc,
+  collection,
+  getDocs,
+  query,
+  serverTimestamp,
+  where,
+} from "firebase/firestore";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { auth, db } from "../../firebase/FirebaseConfig";
 
 const InventoryContext = createContext({});
 
 export const useInventory = () => useContext(InventoryContext);
 
 export const InventoryProvider = ({ children }) => {
-
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // true inicial
   const [userInventories, setUserInventories] = useState([]);
   const [allInventories, setAllInventories] = useState([]);
+  const [lastRefresh, setLastRefresh] = useState(null);
+  const isMounted = useRef(true); // Para evitar updates después de desmontar
 
-  // 1. Obtener SOLO los inventarios del usuario actual (PARA USERS)
-  const getUserInventories = async () => {
+  // 🔧 FUNCIONES BÁSICAS SIN ACTUALIZAR ESTADO
+  const fetchUserInventories = async () => {
     const currentUser = auth.currentUser;
-    
-    if (!currentUser) {
-      console.log("👤 getUserInventories: No hay usuario autenticado");
-      return [];
-    }
+    if (!currentUser) return [];
 
-    console.log("🔍 Buscando MIS inventarios para:", currentUser.uid);
-    
     try {
       const q = query(
-        collection(db, 'inventarios'),
-        where('createdBy', '==', currentUser.uid)
+        collection(db, "inventarios"),
+        where("createdBy", "==", currentUser.uid),
       );
-      
       const querySnapshot = await getDocs(q);
-      const inventories = querySnapshot.docs.map(doc => ({
+      return querySnapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
-      
-      console.log("✅ Mis inventarios encontrados:", inventories.length);
-      return inventories;
-      
     } catch (error) {
-      console.error('❌ Error obteniendo MIS inventarios:', error);
+      console.error("Error fetchUserInventories:", error);
       return [];
     }
   };
 
-  // 2. Obtener TODOS los inventarios (PARA ADMIN)
-  const getAllInventories = async () => {
+  const fetchAllInventories = async () => {
     const currentUser = auth.currentUser;
-    
-    if (!currentUser) {
-      console.log("👤 getAllInventories: No hay usuario autenticado");
-      return [];
-    }
+    if (!currentUser) return [];
 
-    console.log("🔍 Buscando TODOS los inventarios (modo admin)");
-    
     try {
-      const q = query(collection(db, 'inventarios'));
-      
+      const q = query(collection(db, "inventarios"));
       const querySnapshot = await getDocs(q);
-      const inventories = querySnapshot.docs.map(doc => ({
+      return querySnapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
-      
-      console.log("✅ TODOS los inventarios encontrados:", inventories.length);
-      return inventories;
-      
     } catch (error) {
-      console.error('❌ Error obteniendo TODOS los inventarios:', error);
+      console.error("Error fetchAllInventories:", error);
       return [];
     }
   };
 
-  // En el useEffect, después de cargar userInventories, agrega:
-  const loadAllInventories = async () => {
-  const inventories = await getAllInventories();
-  setAllInventories(inventories);
-};
+  // 🔄 FUNCIÓN DE REFRESH (SEGURA)
+  const refreshInventories = async () => {
+    if (!isMounted.current) return;
 
-  // Cargar inventarios cuando el usuario cambie
+    console.log("🔄 refreshInventories llamado");
+
+    try {
+      const [userInv, allInv] = await Promise.all([
+        fetchUserInventories(),
+        fetchAllInventories(),
+      ]);
+
+      if (isMounted.current) {
+        setUserInventories(userInv);
+        setAllInventories(allInv);
+        setLastRefresh(new Date());
+        console.log("✅ Inventarios actualizados");
+      }
+
+      return {
+        success: true,
+        userCount: userInv.length,
+        allCount: allInv.length,
+      };
+    } catch (error) {
+      console.error("❌ Error en refreshInventories:", error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  // 📥 CARGA INICIAL (UNA SOLA VEZ)
   useEffect(() => {
-    const loadInventories = async () => {
-      const currentUser = auth.currentUser;
-      
-      if (!currentUser) {
-        console.log("👤 No hay usuario, limpiando inventarios");
+    console.log("⚡ InventoryProvider montado");
+
+    const loadInitialData = async () => {
+      if (!isMounted.current) return;
+
+      try {
+        const [userInv, allInv] = await Promise.all([
+          fetchUserInventories(),
+          fetchAllInventories(),
+        ]);
+
+        if (isMounted.current) {
+          setUserInventories(userInv);
+          setAllInventories(allInv);
+          setLastRefresh(new Date());
+          setLoading(false);
+          console.log("✅ Carga inicial completada");
+        }
+      } catch (error) {
+        console.error("❌ Error en carga inicial:", error);
+        if (isMounted.current) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadInitialData();
+
+    // 🔄 ESCUCHAR CAMBIOS DE AUTH (PERO SIN LLAMAR refreshInventories DIRECTAMENTE)
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      console.log("👤 Auth changed:", user?.email || "No user");
+
+      if (user && isMounted.current) {
+        // En lugar de llamar refreshInventories, recargamos datos directamente
+        loadInitialData();
+      } else if (isMounted.current) {
         setUserInventories([]);
         setAllInventories([]);
-        return;
+        setLoading(false);
       }
-      
-      console.log("🔄 Cargando inventarios para:", currentUser.email);
-      
-      // 1. Siempre cargar los inventarios del usuario
-      const userInventories = await getUserInventories();
-      setUserInventories(userInventories);
-
-      // 2. SIEMPRE cargar TODOS los inventarios también
-      // (Simplificado: ambos arrays se mantienen actualizados)
-      console.log("📦 Cargando TODOS los inventarios también...");
-      const allInventories = await getAllInventories();
-      setAllInventories(allInventories);
-
-    };
-    
-    loadInventories();
-    
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      console.log("👤 Auth state changed:", user?.email);
-      loadInventories();
     });
-    
-    return unsubscribe;
-  }, []);
 
-  // Crear nuevo inventario
+    return () => {
+      console.log("🧹 InventoryProvider desmontado");
+      isMounted.current = false;
+      unsubscribe();
+    };
+  }, []); // ✅ Array vacío - se ejecuta solo una vez
+
+  // ➕ CREAR INVENTARIO
   const createInventory = async (inventoryData) => {
     const currentUser = auth.currentUser;
-    
     if (!currentUser) {
-      console.log("❌ createInventory: Usuario no autenticado");
-      return { success: false, error: 'Usuario no autenticado' };
+      return { success: false, error: "Usuario no autenticado" };
     }
 
-    console.log("✅ createInventory: Usuario válido:", currentUser.uid);
-    
-    setLoading(true);
-    
     try {
       const inventoryWithMeta = {
         mes: inventoryData.mes,
-        anio: parseInt(inventoryData.anio), // ← CON 'anio' (sin ñ)
+        anio: parseInt(inventoryData.anio),
         estado: inventoryData.estado,
         localidad: inventoryData.localidad,
-        
         createdBy: currentUser.uid,
-        createdByName: currentUser.displayName || currentUser.email?.split('@')[0],
+        createdByName:
+          currentUser.displayName || currentUser.email?.split("@")[0],
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         totalEquipos: 0,
-        isActive: true
+        isActive: true,
       };
 
-      console.log("📝 Creando inventario:", inventoryWithMeta);
-      
       const docRef = await addDoc(
-        collection(db, 'inventarios'),
-        inventoryWithMeta
+        collection(db, "inventarios"),
+        inventoryWithMeta,
       );
 
-      console.log("🎉 Inventario creado ID:", docRef.id);
-      
+      // Actualizar estados locales
       const newInventory = {
         id: docRef.id,
-        ...inventoryWithMeta
+        ...inventoryWithMeta,
       };
-      setUserInventories(prev => [...prev, newInventory]);
-      setAllInventories(prev => [...prev, newInventory]);
-      
-      return { 
-        success: true, 
+
+      if (isMounted.current) {
+        setUserInventories((prev) => [...prev, newInventory]);
+        setAllInventories((prev) => [...prev, newInventory]);
+      }
+
+      return {
+        success: true,
         id: docRef.id,
-        message: 'Inventario creado exitosamente' 
+        message: "Inventario creado exitosamente",
       };
-      
     } catch (error) {
-      console.error('❌ Error creando inventario:', error);
-      return { 
-        success: false, 
-        error: error.message || 'Error al crear inventario' 
-      };
-    } finally {
-      setLoading(false);
+      console.error("❌ Error createInventory:", error);
+      return { success: false, error: error.message };
     }
   };
 
+  // 🎯 VALOR DEL CONTEXTO
   const value = {
+    // Estados
     loading,
     userInventories,
     allInventories,
+    lastRefresh,
+
+    // Funciones
     createInventory,
-    getUserInventories,
-    getAllInventories,
-    refreshInventories: () => getUserInventories().then(inv => {
-      setUserInventories(inv);
-      return inv;
-    })
+    refreshInventories,
+    fetchUserInventories,
+    fetchAllInventories,
   };
 
-  console.log("🔄 InventoryProvider, mis inventarios:", userInventories.length);
-  console.log("🔄 InventoryProvider, todos inventarios:", allInventories.length);
+  console.log("🎨 InventoryProvider render - loading:", loading);
 
   return (
     <InventoryContext.Provider value={value}>
@@ -199,3 +212,5 @@ export const InventoryProvider = ({ children }) => {
     </InventoryContext.Provider>
   );
 };
+
+export default InventoryProvider;
