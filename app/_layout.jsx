@@ -1,21 +1,29 @@
 // app/_layout.jsx - VERSIÓN SIMPLE SIN BUCLE
-import { Stack } from 'expo-router';
-import { ActivityIndicator, Text, View } from 'react-native';
-import { COLORS } from '../constants/colors';
-import SafeScreen from './components/safeScreen';
-import { AuthProvider, useAuth } from './contexts/AutContext';
-import { EquipmentProvider } from './contexts/EquipmentContext';
-import { InventoryProvider } from './contexts/InventoryContext';
-import { ProfileProvider } from './contexts/ProfileContext';
+
+import { Stack, useRouter } from "expo-router";
+import { useEffect } from "react"; // 👈 Agrega esto
+import { ActivityIndicator, Text, View } from "react-native";
+import { COLORS } from "../constants/colors";
+import SafeScreen from "./components/safeScreen";
+import { AuthProvider, useAuth } from "./contexts/AutContext";
+import { EquipmentProvider } from "./contexts/EquipmentContext";
+import { InventoryProvider } from "./contexts/InventoryContext";
+import { ProfileProvider } from "./contexts/ProfileContext";
 
 function AuthHandler() {
   const { user, loading, userData } = useAuth();
+  const router = useRouter();
 
-  console.log("🔐 AuthHandler:", {
-    loading,
-    user: user?.email,
-    userData: userData?.role
-  });
+  useEffect(() => {
+    if (!loading && user && userData) {
+      console.log("✅ Usuario autenticado, redirigiendo...");
+      if (userData.role === "admin") {
+        router.replace("/(tabs-admin)"); // 👈 Redirige a tabs-admin
+      } else {
+        router.replace("/(tabs)"); // 👈 Redirige a tabs regular
+      }
+    }
+  }, [user, loading, userData, router]);
 
   // 1. Loading
   if (loading) {
@@ -26,6 +34,7 @@ function AuthHandler() {
   if (!user) {
     return (
       <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
       </Stack>
     );
@@ -38,8 +47,8 @@ function AuthHandler() {
 
   // 4. Autenticado y con userData → Mostrar rutas según rol
   console.log(`🎯 Rol detectado: ${userData.role}`);
-  
-  if (userData.role === 'admin') {
+
+  if (userData.role === "admin") {
     return (
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs-admin)" />
@@ -63,7 +72,14 @@ function AuthHandler() {
 }
 
 const LoadingScreen = ({ message }) => (
-  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background }}>
+  <View
+    style={{
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: COLORS.background,
+    }}
+  >
     <ActivityIndicator size="large" color={COLORS.primary} />
     <Text style={{ marginTop: 15, color: COLORS.text }}>{message}</Text>
   </View>
@@ -74,12 +90,12 @@ export default function RootLayout() {
     <AuthProvider>
       <ProfileProvider>
         <InventoryProvider>
-        <EquipmentProvider>
-          <SafeScreen style={{flex: 1, backgroundColor: COLORS.background}}>
-            <AuthHandler />
-          </SafeScreen>
-        </EquipmentProvider>
-      </InventoryProvider>
+          <EquipmentProvider>
+            <SafeScreen style={{ flex: 1, backgroundColor: COLORS.background }}>
+              <AuthHandler />
+            </SafeScreen>
+          </EquipmentProvider>
+        </InventoryProvider>
       </ProfileProvider>
     </AuthProvider>
   );

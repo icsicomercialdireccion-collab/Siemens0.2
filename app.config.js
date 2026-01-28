@@ -12,9 +12,11 @@ export default {
     userInterfaceStyle: "automatic",
 
     owner: "martin.lara",
+    // IMPORTANTE: Agrega newArchEnabled
+    //newArchEnabled: false, Desactiva el nuevo architecture si causa problemas
 
     splash: {
-      image: "./assets/images/splash.png", // Imagen del splash (1242x2436)
+      image: "./assets/images/splash-icon.png", // Imagen del splash (1242x2436)
       resizeMode: "contain",
       backgroundColor: "#ffffff",
       // Color de fondo del splash
@@ -22,15 +24,23 @@ export default {
 
     // ✅ PLUGINS SIMPLIFICADOS - SIN expo-media-library
     plugins: [
-      "expo-router",
       [
-        "expo-splash-screen",
+        "expo-build-properties",
         {
-          image: "./assets/images/icon.png",
+          android: {
+            // ¡Esta es la clave! Establece compileSdkVersion a 33 o 34.
+            compileSdkVersion: 35,
+            targetSdkVersion: 35,
+            buildToolsVersion: "35.0.0",
+            enablePngGeneration: true,
+            disableWebpGeneration: true,
+          },
+          ios: {
+            deploymentTarget: "15.1",
+          },
         },
       ],
-      // ❌ ELIMINAR expo-media-library de aquí (ya no lo usas)
-      // react-native-image-picker NO necesita plugin en app.config.js
+      "expo-router",
     ],
 
     // ✅ PERMISOS SIMPLIFICADOS
@@ -49,10 +59,19 @@ export default {
 
     android: {
       adaptiveIcon: {
-        foregroundImage: "./assets/images/icon.png",
+        foregroundImage: "./assets/images/adaptive-icon.png",
         backgroundColor: "#0066A1",
+        foregroundImageType: "png",
       },
       package: "com.siemens.inventario02",
+      versionCode: 1,
+      // CONFIGURACIONES CRÍTICAS PARA GRADLE
+      compileSdkVersion: 35,
+      targetSdkVersion: 35,
+      buildToolsVersion: "35.0.0",
+
+      // Si usas diferentes flavors
+      flavor: "production",
       permissions: [
         "android.permission.CAMERA", // Para escanear y tomar fotos
         // Para react-native-image-picker (solo lectura):

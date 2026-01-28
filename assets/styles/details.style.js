@@ -237,7 +237,69 @@ export const detailStyle = StyleSheet.create({
   },
 
   // ==================== MODAL DE EXPORTACIÓN ====================
+  // AGREGAR DESDE AQUÍ:
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  modalContainer: {
+    width: "90%",
+    maxWidth: 400,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 25,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+
+    // Posición centrada (ajustable)
+    position: "absolute",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  modalText: {
+    fontSize: 16,
+    color: "#6B7280",
+    textAlign: "center",
+    marginTop: 15,
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  progressBar: {
+    width: "100%",
+    height: 8,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 4,
+    marginTop: 20,
+    marginBottom: 10,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: COLORS.primary,
+    borderRadius: 4,
+  },
+  progressText: {
+    fontSize: 14,
+    color: COLORS.primary,
+    fontWeight: "600",
+    marginBottom: 20,
+  },
   modalButton: {
+    // ESTE YA LO TIENES
     backgroundColor: COLORS.primary,
     paddingHorizontal: 24,
     paddingVertical: 14,
@@ -247,16 +309,19 @@ export const detailStyle = StyleSheet.create({
     marginTop: 12,
   },
   modalButtonText: {
+    // ESTE YA LO TIENES
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
   },
   modalButtonSecondary: {
+    // ESTE YA LO TIENES
     backgroundColor: "transparent",
     borderWidth: 1,
     borderColor: COLORS.primary,
   },
   modalButtonTextSecondary: {
+    // ESTE YA LO TIENES
     color: COLORS.primary,
     fontSize: 16,
     fontWeight: "600",
