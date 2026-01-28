@@ -1,22 +1,22 @@
 // hooks/useInventoryList.js
-import { useEffect, useState } from 'react';
-import { useInventory } from '../contexts/InventoryContext';
+import { useEffect, useState } from "react";
+import { useInventory } from "../app/contexts/InventoryContext";
 
-export const useInventoryList = (mode = 'user') => {
-  const { 
-    userInventories, 
-    allInventories, 
-    loading, 
-    getUserInventories, 
-    getAllInventories 
+export const useInventoryList = (mode = "user") => {
+  const {
+    userInventories,
+    allInventories,
+    loading,
+    getUserInventories,
+    getAllInventories,
   } = useInventory();
-  
+
   const [inventories, setInventories] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
 
   // Determinar qué datos usar según el modo
   useEffect(() => {
-    if (mode === 'admin-all') {
+    if (mode === "admin-all") {
       setInventories(allInventories);
     } else {
       setInventories(userInventories);
@@ -27,7 +27,7 @@ export const useInventoryList = (mode = 'user') => {
   const refresh = async () => {
     setRefreshing(true);
     try {
-      if (mode === 'admin-all') {
+      if (mode === "admin-all") {
         await getAllInventories();
       } else {
         await getUserInventories();
@@ -42,27 +42,27 @@ export const useInventoryList = (mode = 'user') => {
     if (loading) {
       return {
         isEmpty: false,
-        message: 'Cargando inventarios...',
-        subMessage: ''
+        message: "Cargando inventarios...",
+        subMessage: "",
       };
     }
-    
+
     if (inventories.length === 0) {
-      if (mode === 'admin-all') {
+      if (mode === "admin-all") {
         return {
           isEmpty: true,
-          message: 'No hay inventarios registrados',
-          subMessage: 'Los usuarios aún no han creado inventarios'
+          message: "No hay inventarios registrados",
+          subMessage: "Los usuarios aún no han creado inventarios",
         };
       } else {
         return {
           isEmpty: true,
-          message: 'No has creado inventarios aún',
-          subMessage: 'Crea tu primer inventario desde el botón "+"'
+          message: "No has creado inventarios aún",
+          subMessage: 'Crea tu primer inventario desde el botón "+"',
         };
       }
     }
-    
+
     return { isEmpty: false };
   };
 
@@ -70,11 +70,11 @@ export const useInventoryList = (mode = 'user') => {
   const getTitle = () => {
     const count = inventories.length;
     switch (mode) {
-      case 'admin-all':
+      case "admin-all":
         return `Todos los Inventarios (${count})`;
-      case 'admin':
+      case "admin":
         return `Mis Inventarios (${count})`;
-      case 'user':
+      case "user":
       default:
         return `Mis Inventarios (${count})`;
     }
@@ -88,9 +88,9 @@ export const useInventoryList = (mode = 'user') => {
     title: getTitle(),
     refresh,
     handleDetailsPress: (inventory) => {
-      console.log('Ver detalles del inventario:', inventory.id);
+      console.log("Ver detalles del inventario:", inventory.id);
       // Esta función la implementarás en cada pantalla
       // return navigation.navigate('inventory-details', { inventoryId: inventory.id });
-    }
+    },
   };
 };

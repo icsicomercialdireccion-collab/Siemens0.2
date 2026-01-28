@@ -253,4 +253,56 @@ export const recipeCardStyles = StyleSheet.create({
     marginLeft: 4,
     fontWeight: "500",
   },
+  header: {
+    flexDirection: "center",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+
+  subtitle: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 2,
+  },
+  refreshIcon: {
+    padding: 8,
+  },
+  counter: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: "#f8f9fa",
+  },
+  counterText: {
+    fontSize: 14,
+    color: "#666",
+    fontWeight: "500",
+  },
+  refreshButton: {
+    marginTop: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: "#007AFF",
+    borderRadius: 8,
+  },
+  refreshButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+  emptyList: {
+    padding: 40,
+    alignItems: "center",
+  },
+  emptyText: {
+    color: "#666",
+    fontSize: 16,
+  },
+  flatList: {
+    marginTop: 10,
+    paddingBottom: 70,
+  },
 });
