@@ -237,6 +237,7 @@ export const detailStyle = StyleSheet.create({
   },
 
   // ==================== MODAL DE EXPORTACIÓN ====================
+  // AGREGAR DESDE AQUÍ:
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.7)",
@@ -252,15 +253,15 @@ export const detailStyle = StyleSheet.create({
     padding: 25,
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
     shadowOpacity: 0.3,
     shadowRadius: 20,
-    elevation: 10,
+
+    // Posición centrada (ajustable)
     position: "absolute",
-    top: "30%", // Ajusta este valor
-    left: "5%",
-    right: "5%",
-    zIndex: 1000,
   },
   modalTitle: {
     fontSize: 20,
