@@ -1,19 +1,47 @@
 import { homeStyles } from "@/assets/styles/home.style";
-import { useRouter } from "expo-router";
-import React from "react";
-import { ActivityIndicator, FlatList, Text, View } from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  Text,
+  View,
+} from "react-native";
 
 import ButtomInventoryG from "../components/buttomInventoryG";
 import InventoryCard from "../components/cardInventory";
 import InventoryTitle from "../components/inventoryTitle";
-
 import { useInventory } from "../contexts/InventoryContext";
 
-const HomeScreenAdmin = () => {
+const HomeScreen = () => {
   const router = useRouter();
-  const { userInventories, loading } = useInventory();
+  const { userInventories, loading, refreshInventories } = useInventory();
 
-  if (loading) {
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refreshInventories(); // Asegúrate de tener esta función en tu contexto
+    } catch (error) {
+      console.error("Error refrescando inventarios:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshInventories]);
+
+  // 🔄 Actualizar automáticamente cuando la pantalla gana foco
+  useFocusEffect(
+    useCallback(() => {
+      console.log("🔄 HomeScreenAdmin: Pantalla enfocada, actualizando...");
+      if (refreshInventories) {
+        refreshInventories();
+      }
+    }, [refreshInventories]),
+  );
+
+  if (loading && !refreshing) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#007AFF" />
@@ -45,13 +73,17 @@ const HomeScreenAdmin = () => {
 
   const handleDetailsPress = (inventory) => {
     console.log("Ver detalles del inventario:", inventory.id);
-    // Navegar a detalles/equipos:
-    // router.push(`/(inventory)/${inventory.id}`);
+    // Navegar a la pantalla de detalles
+    router.push({
+      pathname: "/(details)/[id]",
+      params: { id: inventory.id },
+    });
   };
 
   return (
     <View style={homeStyles.container}>
-      <InventoryTitle />
+      <InventoryTitle onRefresh={onRefresh} refreshing={refreshing} />
+
       <FlatList
         data={userInventories}
         keyExtractor={(item) => item.id}
@@ -61,19 +93,37 @@ const HomeScreenAdmin = () => {
             onPressDetails={() => handleDetailsPress(item)}
           />
         )}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#007AFF"]} // Color azul
+            tintColor="#007AFF"
+            title="Actualizando inventarios..."
+            titleColor="#007AFF"
+          />
+        }
         contentContainerStyle={{ padding: 12 }}
         showsVerticalScrollIndicator={false}
-        initialNumToRender={10} // Solo renderiza 10 al inicio
-        maxToRenderPerBatch={10} // Renderiza en lotes de 10
-        windowSize={5} // Mantiene 5 "pantallas" en memoria
-        removeClippedSubviews={true} // Elimina componentes no visibles
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={true}
+        ListEmptyComponent={
+          <View style={{ padding: 40, alignItems: "center" }}>
+            <Text style={{ fontSize: 16, color: "#666" }}>
+              No hay inventarios
+            </Text>
+          </View>
+        }
       />
+
       <ButtomInventoryG
         onPress={() => router.push("/(forms)/formInventory")}
-        label="Agregar Inventario "
+        label="Agregar Inventario"
       />
     </View>
   );
 };
 
-export default HomeScreenAdmin;
+export default HomeScreen;
