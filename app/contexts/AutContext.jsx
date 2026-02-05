@@ -290,7 +290,7 @@ export const AuthProvider = ({ children }) => {
         email: firebaseUser.email,
         displayName: displayName || "",
         createdAt: new Date().toISOString(),
-        role: "user", // Todos nuevos son 'user' por defecto
+        role: "user",
         active: true,
         emailVerified: false,
       };

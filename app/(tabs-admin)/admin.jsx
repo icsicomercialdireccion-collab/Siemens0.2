@@ -14,6 +14,7 @@ import {
 import { authStyles } from "../../assets/styles/auth.styles";
 import InventoryCard from "../components/cardInventory";
 import { useInventory } from "../contexts/InventoryContext";
+
 const AdminScreen = () => {
   const router = useRouter();
   const { allInventories, loading, refreshInventories, lastRefresh } =
