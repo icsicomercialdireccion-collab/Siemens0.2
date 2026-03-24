@@ -7,6 +7,7 @@ import {
   Alert,
   Image,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -91,6 +92,14 @@ export default function PcForm() {
       }
 
       setScanned(false);
+      // 3. Liberar memoria antes de abrir
+      if (global.gc) {
+        global.gc();
+      }
+
+      // 4. Pequeña pausa para que se libere memoria
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       setShowScanner(true);
     } catch (error) {
       console.error("Error abriendo scanner:", error);
@@ -179,17 +188,34 @@ export default function PcForm() {
           quality: 0.7,
           base64: false,
           exif: false,
+          skipProcessing: true,
         };
 
         const photo =
           await photoCameraRef.current.takePictureAsync(photoOptions);
         setShowCameraModal(false);
 
+        setTimeout(() => {
+          if (photoCameraRef.current) {
+            // Forzar limpieza
+            photoCameraRef.current = null;
+          }
+        }, 500);
+
         setFormData((prev) => ({
           ...prev,
           imagen: photo.uri,
         }));
         setImagePreview(photo.uri);
+
+        if (Platform.OS === "android") {
+          setTimeout(() => {
+            if (global.gc) {
+              global.gc();
+              console.log("🧹 GC forzado después de foto");
+            }
+          }, 1000);
+        }
 
         Alert.alert("Foto tomada", "Foto guardada exitosamente", [
           { text: "OK" },
@@ -244,7 +270,12 @@ export default function PcForm() {
         },
       ]);
     } else {
-      Alert.alert("Error", result.error || "No se pudo registrar el equipo");
+      // 👈 MENSAJE ESPECÍFICO PARA SERIAL DUPLICADO
+      if (result.code === "DUPLICATE_SERIAL") {
+        Alert.alert("⚠️ Serial Duplicado", result.error, [{ text: "OK" }]);
+      } else {
+        Alert.alert("Error", result.error || "No se pudo registrar el equipo");
+      }
     }
   };
 

@@ -25,7 +25,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
   const [initialLoad, setInitialLoad] = useState(true);
-
+  const [initialized, setInitialized] = useState(false);
   const [token, setToken] = useState(null);
   const [tokenExpiry, setTokenExpiry] = useState(null);
   const [isTokenRefreshing, setIsTokenRefreshing] = useState(false);
@@ -47,7 +47,7 @@ export const AuthProvider = ({ children }) => {
         console.log("🚪 [AUTH] No hay usuario, limpiando datos");
         setUserData(null);
       }
-
+      setInitialized(true);
       if (initialLoad) {
         setInitialLoad(false);
       }
@@ -471,6 +471,7 @@ export const AuthProvider = ({ children }) => {
     userData,
     loading,
     initialLoad,
+    initialized,
 
     // Estados derivados
     isSignedIn: !!user,

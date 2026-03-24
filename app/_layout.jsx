@@ -7,27 +7,60 @@ import { COLORS } from "../constants/colors";
 import SafeScreen from "./components/safeScreen";
 import { AuthProvider, useAuth } from "./contexts/AutContext";
 import { EquipmentProvider } from "./contexts/EquipmentContext";
-import { InventoryProvider } from "./contexts/InventoryContext";
+import { InventoryProvider, useInventory } from "./contexts/InventoryContext";
 import { ProfileProvider } from "./contexts/ProfileContext";
 
 function AuthHandler() {
-  const { user, loading, userData } = useAuth();
+  const {
+    user,
+    loading: authLoading,
+    userData,
+    initialized: authInitialized,
+  } = useAuth();
+  const { loading: inventoryLoading, initialized: inventoryInitialized } =
+    useInventory();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && user && userData) {
-      console.log("✅ Usuario autenticado, redirigiendo...");
-      if (userData.role === "admin") {
-        router.replace("/(tabs-admin)"); // 👈 Redirige a tabs-admin
-      } else {
-        router.replace("/(tabs)"); // 👈 Redirige a tabs regular
-      }
-    }
-  }, [user, loading, userData, router]);
+    console.log("📊 [LAYOUT] Estado:", {
+      authLoading,
+      authInitialized,
+      inventoryLoading,
+      inventoryInitialized,
+      hasUser: !!user,
+      hasUserData: !!userData,
+      role: userData?.role,
+    });
+  }, [
+    authLoading,
+    authInitialized,
+    inventoryLoading,
+    inventoryInitialized,
+    user,
+    userData,
+  ]);
 
   // 1. Loading
-  if (loading) {
-    return <LoadingScreen message="Cargando..." />;
+  if (
+    authLoading ||
+    !authInitialized ||
+    inventoryLoading ||
+    !inventoryInitialized
+  ) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={{ marginTop: 10 }}>
+          {authLoading
+            ? "Iniciando sesión..."
+            : !authInitialized
+              ? "Cargando perfil..."
+              : inventoryLoading
+                ? "Cargando inventarios..."
+                : "Preparando aplicación..."}
+        </Text>
+      </View>
+    );
   }
 
   // 2. No autenticado → Solo auth
@@ -42,7 +75,12 @@ function AuthHandler() {
 
   // 3. Esperando userData
   if (!userData) {
-    return <LoadingScreen message="Cargando perfil..." />;
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text>Cargando datos del usuario...</Text>
+      </View>
+    );
   }
 
   // 4. Autenticado y con userData → Mostrar rutas según rol
