@@ -64,11 +64,15 @@ export default {
         foregroundImageType: "png",
       },
       package: "com.siemens.inventario02",
-      versionCode: 1,
+      versionCode: 2,
       // CONFIGURACIONES CRÍTICAS PARA GRADLE
       compileSdkVersion: 35,
       targetSdkVersion: 35,
       buildToolsVersion: "35.0.0",
+
+      config: {
+        largeHeap: true, // Permite usar más memoria
+      },
 
       // Si usas diferentes flavors
       flavor: "production",

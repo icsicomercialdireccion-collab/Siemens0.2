@@ -1,4 +1,5 @@
-// contexts/InventoryContext.jsx - SIN BUCLE
+// contexts/InventoryContext.jsx - VERSIÓN CORREGIDA Y OPTIMIZADA
+
 import {
   addDoc,
   collection,
@@ -9,49 +10,61 @@ import {
 } from "firebase/firestore";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { auth, db } from "../../firebase/FirebaseConfig";
+import { useAuth } from "./AutContext";
 
 const InventoryContext = createContext({});
 
 export const useInventory = () => useContext(InventoryContext);
 
 export const InventoryProvider = ({ children }) => {
-  const [loading, setLoading] = useState(true); // true inicial
+  const [loading, setLoading] = useState(true);
   const [userInventories, setUserInventories] = useState([]);
   const [allInventories, setAllInventories] = useState([]);
   const [lastRefresh, setLastRefresh] = useState(null);
-  const isMounted = useRef(true); // Para evitar updates después de desmontar
+  const [initialized, setInitialized] = useState(false);
 
-  // 🔧 FUNCIONES BÁSICAS SIN ACTUALIZAR ESTADO
-  const fetchUserInventories = async () => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) return [];
+  const isMounted = useRef(true);
+  const { user, userData } = useAuth();
+
+  // ==================== FUNCIONES BÁSICAS ====================
+
+  const fetchUserInventories = async (userId) => {
+    if (!userId) {
+      console.log("⚠️ fetchUserInventories: userId es undefined");
+      return [];
+    }
 
     try {
+      console.log("🔍 Buscando inventarios con createdBy ==", userId);
+
       const q = query(
         collection(db, "inventarios"),
-        where("createdBy", "==", currentUser.uid),
+        where("createdBy", "==", userId),
       );
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map((doc) => ({
+      const snapshot = await getDocs(q);
+
+      console.log(`📊 Encontrados ${snapshot.docs.length} documentos`);
+
+      return snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate?.() || new Date(),
+        updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
       }));
     } catch (error) {
-      console.error("Error fetchUserInventories:", error);
+      console.error("❌ Error fetchUserInventories:", error);
       return [];
     }
   };
 
   const fetchAllInventories = async () => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) return [];
-
     try {
-      const q = query(collection(db, "inventarios"));
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map((doc) => ({
+      const snapshot = await getDocs(collection(db, "inventarios"));
+      return snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate?.() || new Date(),
+        updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
       }));
     } catch (error) {
       console.error("Error fetchAllInventories:", error);
@@ -59,23 +72,131 @@ export const InventoryProvider = ({ children }) => {
     }
   };
 
-  // 🔄 FUNCIÓN DE REFRESH (SEGURA)
-  const refreshInventories = async () => {
-    if (!isMounted.current) return;
+  // ==================== FUNCIÓN PRINCIPAL DE CARGA ====================
 
+  const loadInventories = async () => {
+    console.log("📥 [INVENTORY] loadInventories INICIADO");
+    console.log("  - user?.uid:", user?.uid);
+    console.log("  - userData?.role:", userData?.role);
+
+    // Caso 1: No hay usuario
+    if (!user) {
+      console.log("❌ No hay usuario, limpiando inventarios");
+      setUserInventories([]);
+      setAllInventories([]);
+      setInitialized(true);
+      setLoading(false);
+      return;
+    }
+
+    // Caso 2: Hay usuario pero no userData - esperar
+    if (user && !userData) {
+      console.log("⏳ Esperando userData...");
+      setLoading(true);
+      setInitialized(false);
+      return;
+    }
+
+    // Caso 3: Hay usuario y userData - cargar inventarios
+    try {
+      setLoading(true);
+      console.log("📥 Cargando inventarios para:", user.uid);
+
+      const userInv = await fetchUserInventories(user.uid);
+      const isAdmin = userData?.role === "admin";
+      const allInv = isAdmin ? await fetchAllInventories() : [];
+
+      if (isMounted.current) {
+        console.log("✅ [INVENTORY] Inventarios cargados:", {
+          user: userInv.length,
+          all: allInv.length,
+          role: userData?.role,
+        });
+
+        setUserInventories(userInv);
+        setAllInventories(allInv);
+        setLastRefresh(new Date());
+        setInitialized(true);
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error("❌ Error en loadInventories:", error);
+      if (isMounted.current) {
+        setInitialized(true);
+        setLoading(false);
+      }
+    }
+  };
+
+  // ==================== EFECTO PRINCIPAL ====================
+  // Se ejecuta cuando cambia el usuario o su rol
+  useEffect(() => {
+    console.log("📦 [INVENTORY] Efecto principal disparado:", {
+      hasUser: !!user,
+      hasUserData: !!userData,
+      userId: user?.uid,
+    });
+
+    loadInventories();
+  }, [user?.uid, userData?.role]);
+
+  // ==================== EFECTO DE INICIALIZACIÓN ====================
+  // Solo se ejecuta UNA VEZ al montar el componente
+  useEffect(() => {
+    console.log("⚡ InventoryProvider montado");
+
+    const unsubscribe = auth.onAuthStateChanged((authUser) => {
+      console.log("👤 Auth changed:", authUser?.email || "No user");
+
+      if (authUser && isMounted.current) {
+        // Si hay usuario autenticado, cargar inventarios
+        loadInventories();
+      } else if (!authUser && isMounted.current) {
+        // Sin usuario, limpiar todo
+        setUserInventories([]);
+        setAllInventories([]);
+        setInitialized(true);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      console.log("🧹 InventoryProvider desmontado");
+      isMounted.current = false;
+      unsubscribe();
+    };
+  }, []); // Array vacío = solo una vez
+
+  // ==================== REFRESH INVENTARIOS ====================
+
+  const refreshInventories = async () => {
     console.log("🔄 refreshInventories llamado");
 
+    if (!isMounted.current) return;
+
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      console.log("⚠️ No hay usuario autenticado para refrescar");
+      return { success: false, error: "No hay usuario autenticado" };
+    }
+
     try {
-      const [userInv, allInv] = await Promise.all([
-        fetchUserInventories(),
-        fetchAllInventories(),
-      ]);
+      const userId = currentUser.uid;
+      console.log("🔄 Refrescando inventarios para:", userId);
+
+      const userInv = await fetchUserInventories(userId);
+      const isAdmin = userData?.role === "admin";
+      const allInv = isAdmin ? await fetchAllInventories() : [];
 
       if (isMounted.current) {
         setUserInventories(userInv);
         setAllInventories(allInv);
         setLastRefresh(new Date());
-        console.log("✅ Inventarios actualizados");
+        console.log("✅ Inventarios actualizados:", {
+          user: userInv.length,
+          all: allInv.length,
+          isAdmin,
+        });
       }
 
       return {
@@ -89,58 +210,8 @@ export const InventoryProvider = ({ children }) => {
     }
   };
 
-  // 📥 CARGA INICIAL (UNA SOLA VEZ)
-  useEffect(() => {
-    console.log("⚡ InventoryProvider montado");
+  // ==================== CREAR INVENTARIO ====================
 
-    const loadInitialData = async () => {
-      if (!isMounted.current) return;
-
-      try {
-        const [userInv, allInv] = await Promise.all([
-          fetchUserInventories(),
-          fetchAllInventories(),
-        ]);
-
-        if (isMounted.current) {
-          setUserInventories(userInv);
-          setAllInventories(allInv);
-          setLastRefresh(new Date());
-          setLoading(false);
-          console.log("✅ Carga inicial completada");
-        }
-      } catch (error) {
-        console.error("❌ Error en carga inicial:", error);
-        if (isMounted.current) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadInitialData();
-
-    // 🔄 ESCUCHAR CAMBIOS DE AUTH (PERO SIN LLAMAR refreshInventories DIRECTAMENTE)
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      console.log("👤 Auth changed:", user?.email || "No user");
-
-      if (user && isMounted.current) {
-        // En lugar de llamar refreshInventories, recargamos datos directamente
-        loadInitialData();
-      } else if (isMounted.current) {
-        setUserInventories([]);
-        setAllInventories([]);
-        setLoading(false);
-      }
-    });
-
-    return () => {
-      console.log("🧹 InventoryProvider desmontado");
-      isMounted.current = false;
-      unsubscribe();
-    };
-  }, []); // ✅ Array vacío - se ejecuta solo una vez
-
-  // ➕ CREAR INVENTARIO
   const createInventory = async (inventoryData) => {
     const currentUser = auth.currentUser;
     if (!currentUser) {
@@ -148,6 +219,8 @@ export const InventoryProvider = ({ children }) => {
     }
 
     try {
+      console.log("📝 Creando inventario para usuario:", currentUser.uid);
+
       const inventoryWithMeta = {
         mes: inventoryData.mes,
         anio: parseInt(inventoryData.anio),
@@ -167,15 +240,41 @@ export const InventoryProvider = ({ children }) => {
         inventoryWithMeta,
       );
 
-      // Actualizar estados locales
+      console.log("✅ Inventario creado en Firebase, ID:", docRef.id);
+
       const newInventory = {
         id: docRef.id,
-        ...inventoryWithMeta,
+        mes: inventoryData.mes,
+        anio: parseInt(inventoryData.anio),
+        estado: inventoryData.estado,
+        localidad: inventoryData.localidad,
+        createdBy: currentUser.uid,
+        createdByName:
+          currentUser.displayName || currentUser.email?.split("@")[0],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        totalEquipos: 0,
+        isActive: true,
       };
 
       if (isMounted.current) {
-        setUserInventories((prev) => [...prev, newInventory]);
-        setAllInventories((prev) => [...prev, newInventory]);
+        // Actualizar inventarios del usuario
+        setUserInventories((prev) => {
+          const updated = [newInventory, ...prev];
+          console.log("📊 userInventories actualizado:", updated.length);
+          return updated;
+        });
+
+        // Si es admin, actualizar todos los inventarios
+        if (userData?.role === "admin") {
+          setAllInventories((prev) => {
+            const updated = [newInventory, ...prev];
+            console.log("📊 allInventories actualizado:", updated.length);
+            return updated;
+          });
+        }
+
+        setLastRefresh(new Date());
       }
 
       return {
@@ -189,13 +288,15 @@ export const InventoryProvider = ({ children }) => {
     }
   };
 
-  // 🎯 VALOR DEL CONTEXTO
+  // ==================== VALOR DEL CONTEXTO ====================
+
   const value = {
     // Estados
     loading,
     userInventories,
     allInventories,
     lastRefresh,
+    initialized,
 
     // Funciones
     createInventory,
@@ -204,7 +305,12 @@ export const InventoryProvider = ({ children }) => {
     fetchAllInventories,
   };
 
-  console.log("🎨 InventoryProvider render - loading:", loading);
+  console.log(
+    "🎨 InventoryProvider render - loading:",
+    loading,
+    "init:",
+    initialized,
+  );
 
   return (
     <InventoryContext.Provider value={value}>

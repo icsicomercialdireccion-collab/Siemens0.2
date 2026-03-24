@@ -1,9 +1,22 @@
-// contexts/EquipmentContext.jsx - VERSIÓN LIMPIA
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, increment, query, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
-import { createContext, useContext, useState } from 'react';
-import { Alert } from 'react-native';
-import { db, storage } from '../../firebase/FirebaseConfig';
+// app/contexts/EquipmentContext.jsx - VERSIÓN CON VALIDACIÓN Y ORDEN
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  increment,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
+} from "firebase/firestore";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { createContext, useContext, useState } from "react";
+import { Alert } from "react-native";
+import { db, storage } from "../../firebase/FirebaseConfig";
 
 const EquipmentContext = createContext({});
 
@@ -14,210 +27,281 @@ export const EquipmentProvider = ({ children }) => {
   const [equipments, setEquipments] = useState([]);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // 1. OBTENER EQUIPOS DE UN INVENTARIO
-  const getEquipmentsByInventory = async (inventoryId) => {
-  try {
-    setLoading(true);
-    console.log('📋 Obteniendo equipos para inventario:', inventoryId);
-    
-    const q = query(
-      collection(db, 'inventarios', inventoryId, 'equipos')
-    );
-    
-    const querySnapshot = await getDocs(q);
-    console.log(`📊 ${querySnapshot.docs.length} equipos encontrados`);
-    
-    const equipmentsList = querySnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        serial: data.serial || 'Sin serial',
-        estado: data.estado || 'nuevo',
-        observaciones: data.observaciones || '',
-        tipo: data.tipo || "computadora",
-        imagenUrl: data.imagenUrl || null,
-        imagenFileName: data.imagenFileName || null,
-        
-        // CONVERTIR TIMESTAMPS
-        createdAt: data.createdAt?.toDate?.() || new Date(),
-        updatedAt: data.updatedAt?.toDate?.() || new Date(),
-        
-        // Mantener otros campos
-        ...Object.keys(data).reduce((acc, key) => {
-          if (!['createdAt', 'updatedAt'].includes(key)) {
-            acc[key] = data[key];
-          }
-          return acc;
-        }, {})
-      };
-    });
-    
-    setEquipments(equipmentsList);
-    return equipmentsList;
-    
-  } catch (error) {
-    console.error("❌ Error obteniendo equipos:", {
-      message: error.message,
-      code: error.code,
-      inventoryId
-    });
-    
-    let errorMessage = "No se pudieron cargar los equipos";
-    if (error.code === 'permission-denied') {
-      errorMessage = "No tienes permiso para ver estos equipos";
-    }
-    
-    Alert.alert("Error", errorMessage);
-    return [];
-    
-  } finally {
-    setLoading(false);
-  }
-};
+  // 🔥 NUEVA FUNCIÓN: Verificar si el serial ya existe en el inventario
+  const checkSerialExists = async (inventoryId, serial) => {
+    try {
+      console.log("🔍 Verificando serial duplicado:", serial);
 
-  // 2. CREAR NUEVO EQUIPO (VERSIÓN LIMPIA)
+      const q = query(
+        collection(db, "inventarios", inventoryId, "equipos"),
+        where("serial", "==", serial.toUpperCase()),
+      );
+
+      const snapshot = await getDocs(q);
+      const exists = !snapshot.empty;
+
+      if (exists) {
+        console.log("⚠️ Serial ya existe:", serial);
+      } else {
+        console.log("✅ Serial disponible:", serial);
+      }
+
+      return exists;
+    } catch (error) {
+      console.error("❌ Error verificando serial:", error);
+      return false;
+    }
+  };
+
+  // 1. OBTENER EQUIPOS DE UN INVENTARIO (CON ORDEN)
+  const getEquipmentsByInventory = async (inventoryId) => {
+    try {
+      setLoading(true);
+      console.log("📋 Obteniendo equipos para inventario:", inventoryId);
+
+      // 👈 AGREGAR orderBy para ordenar por fecha de creación (más reciente primero)
+      const q = query(
+        collection(db, "inventarios", inventoryId, "equipos"),
+        orderBy("createdAt", "desc"), // 👈 DESC = más reciente primero
+      );
+
+      const querySnapshot = await getDocs(q);
+      console.log(`📊 ${querySnapshot.docs.length} equipos encontrados`);
+
+      const equipmentsList = querySnapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          serial: data.serial || "Sin serial",
+          estado: data.estado || "nuevo",
+          observaciones: data.observaciones || "",
+          tipo: data.tipo || "computadora",
+          imagenUrl: data.imagenUrl || null,
+          imagenFileName: data.imagenFileName || null,
+          createdAt: data.createdAt?.toDate?.() || new Date(),
+          updatedAt: data.updatedAt?.toDate?.() || new Date(),
+          ...Object.keys(data).reduce((acc, key) => {
+            if (!["createdAt", "updatedAt"].includes(key)) {
+              acc[key] = data[key];
+            }
+            return acc;
+          }, {}),
+        };
+      });
+
+      setEquipments(equipmentsList);
+      return equipmentsList;
+    } catch (error) {
+      console.error("❌ Error obteniendo equipos:", error);
+      Alert.alert("Error", "No se pudieron cargar los equipos");
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 2. CREAR NUEVO EQUIPO (CON VALIDACIÓN DE SERIAL DUPLICADO)
   const createEquipment = async (inventoryId, equipmentData) => {
     try {
       setLoading(true);
-      
+
       // Validación básica
       if (!equipmentData.serial || !equipmentData.serial.trim()) {
         throw new Error("El número de serie es requerido");
       }
-      
+
       const serial = equipmentData.serial.trim().toUpperCase();
+
+      // 🔥 VALIDAR SERIAL DUPLICADO
+      const serialExists = await checkSerialExists(inventoryId, serial);
+
+      if (serialExists) {
+        Alert.alert(
+          "⚠️ Serial Duplicado",
+          `El equipo con serial ${serial} ya existe en este inventario.\n\n¿Deseas registrar otro equipo?`,
+          [{ text: "OK" }],
+        );
+        return {
+          success: false,
+          error: `El serial ${serial} ya está registrado en este inventario`,
+          code: "DUPLICATE_SERIAL",
+        };
+      }
+
       let finalImageUrl = null;
       let imageFileName = null;
-      
+
       // Subir imagen si es URI local
-      if (equipmentData.imagenUrl && equipmentData.imagenUrl.startsWith('file://')) {
+      if (
+        equipmentData.imagenUrl &&
+        equipmentData.imagenUrl.startsWith("file://")
+      ) {
         try {
           const imageResult = await uploadImageToStorage(
             equipmentData.imagenUrl,
             inventoryId,
-            serial
+            serial,
           );
-          
           finalImageUrl = imageResult.url;
           imageFileName = imageResult.fileName;
-          
         } catch (uploadError) {
           console.error("Error subiendo imagen:", uploadError);
-          finalImageUrl = null;
           Alert.alert(
-            "Aviso", 
+            "Aviso",
             "Equipo creado pero no se pudo subir la imagen",
-            [{ text: "OK" }]
+            [{ text: "OK" }],
           );
         }
-      } 
-      // Si ya es URL de Storage, usarla directamente
-      else if (equipmentData.imagenUrl && equipmentData.imagenUrl.includes('firebasestorage.googleapis.com')) {
+      } else if (
+        equipmentData.imagenUrl &&
+        equipmentData.imagenUrl.includes("firebasestorage.googleapis.com")
+      ) {
         finalImageUrl = equipmentData.imagenUrl;
       }
-      
+
       // Preparar datos para Firestore
+      const now = new Date();
       const equipmentWithMeta = {
         serial: serial,
-        estado: equipmentData.estado || equipmentData.notas || 'nuevo',
-        observaciones: equipmentData.observaciones || '',
+        estado: equipmentData.estado || equipmentData.notas || "nuevo",
+        observaciones: equipmentData.observaciones || "",
         tipo: equipmentData.tipo || "computadora",
-        imagenUrl: finalImageUrl, // Solo URL de Storage o null
+        imagenUrl: finalImageUrl,
         imagenFileName: imageFileName,
         inventoryId: inventoryId,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        status: 'active',
-        lastImageUpdate: finalImageUrl ? serverTimestamp() : null
+        status: "active",
+        lastImageUpdate: finalImageUrl ? serverTimestamp() : null,
+        // 👈 AGREGAR timestamp numérico para ordenar más fácil
+        createdAtTimestamp: Date.now(),
       };
-      
+
       // Guardar en Firestore
       const equipmentRef = await addDoc(
-        collection(db, 'inventarios', inventoryId, 'equipos'),
-        equipmentWithMeta
+        collection(db, "inventarios", inventoryId, "equipos"),
+        equipmentWithMeta,
       );
-      
+
       // Actualizar contador del inventario
       try {
-        const inventoryRef = doc(db, 'inventarios', inventoryId);
+        const inventoryRef = doc(db, "inventarios", inventoryId);
         await updateDoc(inventoryRef, {
           totalEquipos: increment(1),
-          updatedAt: serverTimestamp()
+          updatedAt: serverTimestamp(),
         });
       } catch (counterError) {
         console.warn("Error actualizando contador:", counterError);
       }
-      
-      // Preparar respuesta
+
+      // Preparar respuesta con fecha actual
       const newEquipment = {
         id: equipmentRef.id,
         ...equipmentWithMeta,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        createdAt: now,
+        updatedAt: now,
+        createdAtTimestamp: now.getTime(),
       };
-      
-      // Actualizar estado local
-      setEquipments(prev => [...prev, newEquipment]);
-      
+
+      // 👈 AGREGAR AL INICIO DEL ARRAY (más reciente primero)
+      setEquipments((prev) => [newEquipment, ...prev]);
+
       return {
         success: true,
         id: equipmentRef.id,
-        message: finalImageUrl ? 'Equipo creado con imagen' : 'Equipo creado sin imagen',
+        message: finalImageUrl
+          ? "Equipo creado con imagen"
+          : "Equipo creado sin imagen",
         data: newEquipment,
-        hasImage: !!finalImageUrl
+        hasImage: !!finalImageUrl,
       };
-      
     } catch (error) {
       console.error("Error creando equipo:", error);
-      
-      let errorMessage = 'Error al crear equipo';
-      if (error.message.includes('serial')) {
-        errorMessage = 'El número de serie es requerido';
-      } else if (error.code === 'permission-denied') {
-        errorMessage = 'No tienes permisos para crear equipos';
+
+      let errorMessage = "Error al crear equipo";
+      if (error.message.includes("serial")) {
+        errorMessage = "El número de serie es requerido";
+      } else if (error.code === "permission-denied") {
+        errorMessage = "No tienes permisos para crear equipos";
       }
-      
+
       return {
         success: false,
-        error: errorMessage
+        error: errorMessage,
       };
     } finally {
       setLoading(false);
       setUploadProgress(0);
     }
   };
-  
-  // 3. ACTUALIZAR EQUIPO
+
+  // 3. ACTUALIZAR EQUIPO (CON VALIDACIÓN DE SERIAL DUPLICADO)
   const updateEquipment = async (inventoryId, equipmentId, updates) => {
     try {
       setLoading(true);
-      
-      const equipmentRef = doc(db, 'inventarios', inventoryId, 'equipos', equipmentId);
-      
+
+      // Si se está actualizando el serial, verificar que no exista otro
+      if (updates.serial) {
+        const newSerial = updates.serial.trim().toUpperCase();
+
+        // Obtener el equipo actual para comparar
+        const currentEquipment = await getEquipment(inventoryId, equipmentId);
+
+        // Solo verificar si el serial es diferente al actual
+        if (
+          currentEquipment.success &&
+          currentEquipment.data.serial !== newSerial
+        ) {
+          const serialExists = await checkSerialExists(inventoryId, newSerial);
+
+          if (serialExists) {
+            Alert.alert(
+              "⚠️ Serial Duplicado",
+              `El serial ${newSerial} ya está en uso por otro equipo`,
+              [{ text: "OK" }],
+            );
+            return {
+              success: false,
+              error: `El serial ${newSerial} ya está registrado`,
+              code: "DUPLICATE_SERIAL",
+            };
+          }
+        }
+
+        updates.serial = newSerial;
+      }
+
+      const equipmentRef = doc(
+        db,
+        "inventarios",
+        inventoryId,
+        "equipos",
+        equipmentId,
+      );
+
       await updateDoc(equipmentRef, {
         ...updates,
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
       });
-      
-      // Actualizar estado local
-      setEquipments(prev => 
-        prev.map(eq => 
-          eq.id === equipmentId 
+
+      // Actualizar estado local manteniendo el orden
+      setEquipments((prev) =>
+        prev.map((eq) =>
+          eq.id === equipmentId
             ? { ...eq, ...updates, updatedAt: new Date() }
-            : eq
-        )
+            : eq,
+        ),
       );
-      
+
       return {
         success: true,
-        message: 'Equipo actualizado exitosamente'
+        message: "Equipo actualizado exitosamente",
       };
-      
     } catch (error) {
       console.error("Error actualizando equipo:", error);
       return {
         success: false,
-        error: 'Error al actualizar equipo'
+        error: "Error al actualizar equipo",
       };
     } finally {
       setLoading(false);
@@ -228,32 +312,33 @@ export const EquipmentProvider = ({ children }) => {
   const deleteEquipment = async (inventoryId, equipmentId) => {
     try {
       setLoading(true);
-      
-      const equipmentRef = doc(db, 'inventarios', inventoryId, 'equipos', equipmentId);
-      
-      // 1. Eliminar equipo
+
+      const equipmentRef = doc(
+        db,
+        "inventarios",
+        inventoryId,
+        "equipos",
+        equipmentId,
+      );
       await deleteDoc(equipmentRef);
-      
-      // 2. Actualizar contador del inventario
-      const inventoryRef = doc(db, 'inventarios', inventoryId);
+
+      const inventoryRef = doc(db, "inventarios", inventoryId);
       await updateDoc(inventoryRef, {
         totalEquipos: increment(-1),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
       });
-      
-      // 3. Actualizar estado local
-      setEquipments(prev => prev.filter(eq => eq.id !== equipmentId));
-      
+
+      setEquipments((prev) => prev.filter((eq) => eq.id !== equipmentId));
+
       return {
         success: true,
-        message: 'Equipo eliminado exitosamente'
+        message: "Equipo eliminado exitosamente",
       };
-      
     } catch (error) {
       console.error("Error eliminando equipo:", error);
       return {
         success: false,
-        error: 'Error al eliminar equipo'
+        error: "Error al eliminar equipo",
       };
     } finally {
       setLoading(false);
@@ -262,168 +347,113 @@ export const EquipmentProvider = ({ children }) => {
 
   // 5. OBTENER UN EQUIPO ESPECÍFICO
   const getEquipment = async (inventoryId, equipmentId) => {
-  try {
-    console.log('🔍 getEquipment llamado:', { inventoryId, equipmentId });
-    
-    if (!inventoryId || !equipmentId) {
-      console.error('❌ IDs inválidos:', { inventoryId, equipmentId });
-      return {
-        success: false,
-        error: 'IDs de inventario o equipo inválidos'
-      };
+    try {
+      if (!inventoryId || !equipmentId) {
+        return { success: false, error: "IDs inválidos" };
+      }
+
+      const equipmentRef = doc(
+        db,
+        "inventarios",
+        inventoryId,
+        "equipos",
+        equipmentId,
+      );
+      const equipmentSnap = await getDoc(equipmentRef);
+
+      if (equipmentSnap.exists()) {
+        const data = equipmentSnap.data();
+
+        const processedData = {
+          id: equipmentSnap.id,
+          serial: data.serial || "Sin serial",
+          estado: data.estado || "nuevo",
+          observaciones: data.observaciones || "",
+          tipo: data.tipo || "computadora",
+          imagenUrl: data.imagenUrl || null,
+          imagenFileName: data.imagenFileName || null,
+          createdAt: data.createdAt?.toDate?.() || new Date(),
+          updatedAt: data.updatedAt?.toDate?.() || new Date(),
+          ...Object.keys(data).reduce((acc, key) => {
+            if (!["createdAt", "updatedAt"].includes(key)) {
+              acc[key] = data[key];
+            }
+            return acc;
+          }, {}),
+        };
+
+        return { success: true, data: processedData };
+      }
+
+      return { success: false, error: "Equipo no encontrado" };
+    } catch (error) {
+      console.error("Error en getEquipment:", error);
+      return { success: false, error: "Error al cargar equipo" };
     }
-    
-    const equipmentRef = doc(db, 'inventarios', inventoryId, 'equipos', equipmentId);
-    console.log('📄 Referencia creada:', equipmentRef.path);
-    
-    const equipmentSnap = await getDoc(equipmentRef);
-    console.log('📦 Snap obtenido:', equipmentSnap.exists());
-    
-    if (equipmentSnap.exists()) {
-      const data = equipmentSnap.data();
-      
-      // CONVERTIR TIMESTAMPS DE FIRESTORE
-      const processedData = {
-        id: equipmentSnap.id,
-        serial: data.serial || 'Sin serial',
-        estado: data.estado || 'nuevo',
-        observaciones: data.observaciones || '',
-        tipo: data.tipo || 'computadora',
-        imagenUrl: data.imagenUrl || null,
-        imagenFileName: data.imagenFileName || null,
-        
-        // CONVERTIR TIMESTAMPS CRÍTICO
-        createdAt: data.createdAt?.toDate?.() || new Date(),
-        updatedAt: data.updatedAt?.toDate?.() || new Date(),
-        
-        // Campos adicionales que puedan existir
-        ...Object.keys(data).reduce((acc, key) => {
-          if (!['createdAt', 'updatedAt'].includes(key)) {
-            acc[key] = data[key];
-          }
-          return acc;
-        }, {})
-      };
-      
-      console.log('✅ Equipo procesado:', {
-        id: processedData.id,
-        serial: processedData.serial,
-        hasImage: !!processedData.imagenUrl,
-        createdAt: processedData.createdAt,
-        updatedAt: processedData.updatedAt
-      });
-      
-      return {
-        success: true,
-        data: processedData
-      };
-      
-    } else {
-      console.log('❌ Equipo no existe en Firestore');
-      return {
-        success: false,
-        error: 'Equipo no encontrado en la base de datos'
-      };
-    }
-  } catch (error) {
-    console.error("🔥 Error en getEquipment:", {
-      message: error.message,
-      code: error.code,
-      inventoryId,
-      equipmentId
-    });
-    
-    let errorMessage = 'Error al cargar equipo';
-    
-    if (error.code === 'permission-denied') {
-      errorMessage = 'No tienes permisos para ver este equipo';
-    } else if (error.code === 'not-found') {
-      errorMessage = 'Equipo no encontrado';
-    } else if (error.message.includes('Invalid document reference')) {
-      errorMessage = 'Referencia inválida al equipo';
-    }
-    
-    return {
-      success: false,
-      error: errorMessage
-    };
-  }
-};
+  };
 
   // FUNCIÓN PARA SUBIR IMAGEN A STORAGE
   const uploadImageToStorage = async (imageUri, inventoryId, serial) => {
     try {
-      // Convertir URI a blob
       const response = await fetch(imageUri);
       const blob = await response.blob();
-      
-      // Limpiar serial para nombre de archivo
+
       const cleanSerial = serial
         .toString()
         .trim()
         .toUpperCase()
-        .replace(/[^A-Z0-9]/g, '_')
+        .replace(/[^A-Z0-9]/g, "_")
         .substring(0, 50);
-      
+
       const timestamp = Date.now();
       const randomString = Math.random().toString(36).substring(2, 6);
-      
-      // Nombre de archivo
       const fileName = `equipos/${inventoryId}/${cleanSerial}_${timestamp}_${randomString}.jpg`;
-      
-      // Verificaciones
-      if (!blob.type.startsWith('image/')) {
-        throw new Error('El archivo no es una imagen válida');
+
+      if (!blob.type.startsWith("image/")) {
+        throw new Error("El archivo no es una imagen válida");
       }
-      
+
       if (blob.size > 5 * 1024 * 1024) {
-        throw new Error('La imagen es muy grande (máximo 5MB)');
+        throw new Error("La imagen es muy grande (máximo 5MB)");
       }
-      
-      // Subir a Storage
+
       const storageRef = ref(storage, fileName);
-      const uploadTask = await uploadBytes(storageRef, blob, {
+      await uploadBytes(storageRef, blob, {
         contentType: blob.type,
         customMetadata: {
           serial: serial,
           inventoryId: inventoryId,
-          uploadedAt: new Date().toISOString()
-        }
+          uploadedAt: new Date().toISOString(),
+        },
       });
-      
-      // Obtener URL pública
-      const downloadURL = await getDownloadURL(uploadTask.ref);
-      
+
+      const downloadURL = await getDownloadURL(storageRef);
+
       return {
         url: downloadURL,
         fileName: fileName,
-        serial: serial
+        serial: serial,
       };
-      
     } catch (error) {
-      console.error('Error subiendo imagen:', error);
+      console.error("Error subiendo imagen:", error);
       throw new Error(`No se pudo subir la imagen: ${error.message}`);
     }
   };
 
-  // Valor del contexto
+  // VALOR DEL CONTEXTO
   const value = {
-    // Estados
     loading,
     equipments,
     uploadProgress,
-    
-    // Funciones CRUD
     getEquipmentsByInventory,
     createEquipment,
     updateEquipment,
     deleteEquipment,
     getEquipment,
     uploadImageToStorage,
-    
-    // Funciones auxiliares
+    checkSerialExists, // 👈 EXPORTAR para uso externo
     refreshEquipments: (inventoryId) => getEquipmentsByInventory(inventoryId),
-    clearEquipments: () => setEquipments([])
+    clearEquipments: () => setEquipments([]),
   };
 
   return (
@@ -433,5 +463,4 @@ export const EquipmentProvider = ({ children }) => {
   );
 };
 
-// Export default para Expo Router
 export default EquipmentProvider;
