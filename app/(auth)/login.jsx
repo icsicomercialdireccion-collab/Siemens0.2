@@ -1,8 +1,8 @@
 // app/(auth)/login.jsx - VERSIÓN LIMPIA
 import { Ionicons } from "@expo/vector-icons";
-import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { Image } from "expo-image";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -12,32 +12,57 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
-} from 'react-native';
-import { authStyles } from '../../assets/styles/auth.styles';
-import { COLORS } from '../../constants/colors';
-import { useAuth } from '../contexts/AutContext';
+  View,
+} from "react-native";
+import { authStyles } from "../../assets/styles/auth.styles";
+import { COLORS } from "../../constants/colors";
+import { useAuth } from "../contexts/AutContext";
 
 const SignInScreen = () => {
   const router = useRouter();
-  const { login, loading: authLoading } = useAuth();
-  
+  const { login, loading: authLoading, user, userData } = useAuth();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+
+  useEffect(() => {
+    console.log("🔍 [LOGIN] useEffect - user:", user?.email);
+    console.log("🔍 [LOGIN] useEffect - userData:", userData?.role);
+
+    if (user && userData && !redirecting) {
+      console.log(
+        "✅ Usuario autenticado, redirigiendo según rol:",
+        userData.role,
+      );
+      setRedirecting(true);
+
+      // Pequeño delay para asegurar que la navegación funciona en APK
+      setTimeout(() => {
+        if (userData.role === "admin") {
+          console.log("🚀 Redirigiendo a admin home");
+          router.replace("/(tabs-admin)/home");
+        } else {
+          console.log("🚀 Redirigiendo a user home");
+          router.replace("/(tabs)/home");
+        }
+      }, 500);
+    }
+  }, [user, userData, router, redirecting]);
 
   const handleSignIn = async () => {
     if (!email || !password) {
       Alert.alert("Error", "Por favor ingresa email y contraseña");
       return;
     }
-    
+
     setIsSubmitting(true);
 
     try {
       const result = await login(email, password);
-      
+
       if (result.success) {
         // ✅ Login exitoso
         // NO redirigir aquí - index.jsx lo hará automáticamente
@@ -54,11 +79,21 @@ const SignInScreen = () => {
 
   const isLoading = authLoading || isSubmitting;
 
+  // 👈 Mostrar loading mientras redirige
+  if (redirecting) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={{ marginTop: 10 }}>Redirigiendo...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={authStyles.container}>
       <KeyboardAvoidingView
         style={authStyles.keyboardView}
-        behavior={Platform.OS === 'android' ? 'padding' : "height"}
+        behavior={Platform.OS === "android" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "android" ? 64 : 0}
       >
         <ScrollView
@@ -67,7 +102,7 @@ const SignInScreen = () => {
           showsVerticalScrollIndicator={false}
         >
           <View style={authStyles.imageContainer}>
-            <Image 
+            <Image
               source={require("../../assets/images/icsiLogo.png")}
               style={authStyles.image}
               contentFit="contain"
@@ -113,11 +148,11 @@ const SignInScreen = () => {
                 />
               </TouchableOpacity>
             </View>
-            
+
             <TouchableOpacity
               style={[
-                authStyles.authButton, 
-                isLoading && authStyles.buttonDisabled
+                authStyles.authButton,
+                isLoading && authStyles.buttonDisabled,
               ]}
               onPress={handleSignIn}
               disabled={isLoading}
@@ -134,8 +169,8 @@ const SignInScreen = () => {
               style={authStyles.linkContainer}
               onPress={() => router.push("/(auth)/sign-up")}
               disabled={isLoading}
-            > 
-              <Text style={authStyles.link}>Regístrate</Text> 
+            >
+              <Text style={authStyles.link}>Regístrate</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -143,15 +178,15 @@ const SignInScreen = () => {
               onPress={() => router.push("/(auth)/forgot-password")}
               disabled={isLoading}
             >
-              <Text style={[authStyles.link, { fontSize: 14}]}>
+              <Text style={[authStyles.link, { fontSize: 14 }]}>
                 ¿Olvidaste tu contraseña?
-              </Text> 
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
-  )
-}
+  );
+};
 
 export default SignInScreen;

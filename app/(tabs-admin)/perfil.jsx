@@ -1,11 +1,19 @@
 // app/(profile)/profile.jsx
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { profileStyle } from '../../assets/styles/profileScreen.style';
-import { COLORS } from '../../constants/colors';
-import { useAuth } from '../contexts/AutContext';
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { profileStyle } from "../../assets/styles/profileScreen.style";
+import { COLORS } from "../../constants/colors";
+import { useAuth } from "../contexts/AutContext";
 
 export default function PerfilAdminScreen() {
   const { user, logout, loading: authLoading } = useAuth();
@@ -17,9 +25,9 @@ export default function PerfilAdminScreen() {
     if (user) {
       // Aquí podrías obtener más datos del usuario si es necesario
       setUserData({
-        name: user.displayName || 'Administrador',
-        email: user.email || 'No especificado',
-        role: 'Administrador', // Esto debería venir de tu base de datos
+        name: user.displayName || "Administrador",
+        email: user.email || "No especificado",
+        role: "Administrador", // Esto debería venir de tu base de datos
         avatarUrl: user.photoURL,
         joinDate: user.metadata?.creationTime || new Date().toISOString(),
         lastLogin: user.metadata?.lastSignInTime || new Date().toISOString(),
@@ -34,44 +42,44 @@ export default function PerfilAdminScreen() {
       "¿Estás seguro de que quieres cerrar sesión?",
       [
         { text: "Cancelar", style: "cancel" },
-        { 
-          text: "Cerrar sesión", 
+        {
+          text: "Cerrar sesión",
           style: "destructive",
           onPress: async () => {
             setLoading(true);
             const result = await logout();
             setLoading(false);
-            
+
             if (result.success) {
               router.replace("/(auth)/login");
             } else {
               Alert.alert("Error", result.error || "No se pudo cerrar sesión");
             }
-          }
-        }
-      ]
+          },
+        },
+      ],
     );
   };
 
   const handleEditProfile = () => {
     router.push({
-      pathname: '/(forms)/formEditProfile',
-      params: { userData: JSON.stringify(userData) }
+      pathname: "/(forms)/formEditProfile",
+      params: { userData: JSON.stringify(userData) },
     });
   };
 
   const formatDate = (dateString) => {
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString('es-ES', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+      return date.toLocaleDateString("es-ES", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
       });
     } catch {
-      return 'No disponible';
+      return "No disponible";
     }
   };
 
@@ -89,9 +97,9 @@ export default function PerfilAdminScreen() {
       <View style={profileStyle.centered}>
         <Ionicons name="person-circle-outline" size={80} color="#ccc" />
         <Text style={profileStyle.errorText}>No se pudo cargar el perfil</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={profileStyle.retryButton}
-          onPress={() => router.replace('/(auth)/login')}
+          onPress={() => router.replace("/(auth)/login")}
         >
           <Text style={profileStyle.retryButtonText}>Iniciar sesión</Text>
         </TouchableOpacity>
@@ -100,7 +108,10 @@ export default function PerfilAdminScreen() {
   }
 
   return (
-    <ScrollView style={profileStyle.container} contentContainerStyle={profileStyle.contentContainer}>
+    <ScrollView
+      style={profileStyle.container}
+      contentContainerStyle={profileStyle.contentContainer}
+    >
       {/* Header con avatar */}
       <View style={profileStyle.header}>
         <View style={profileStyle.avatarContainer}>
@@ -115,12 +126,11 @@ export default function PerfilAdminScreen() {
               <Ionicons name="person" size={60} color="#fff" />
             </View>
           )}
-          
         </View>
-        
+
         <Text style={profileStyle.userName}>{userData.name}</Text>
         <Text style={profileStyle.userEmail}>{userData.email}</Text>
-        
+
         <View style={profileStyle.roleBadge}>
           <Ionicons name="shield-checkmark" size={16} color="#fff" />
           <Text style={profileStyle.roleText}>{userData.role}</Text>
@@ -130,12 +140,14 @@ export default function PerfilAdminScreen() {
       {/* Información del usuario */}
       <View style={profileStyle.infoSection}>
         <View style={profileStyle.sectionHeader}>
-          <Text style={profileStyle.sectionTitle}>Información de la cuenta</Text>
+          <Text style={profileStyle.sectionTitle}>
+            Información de la cuenta
+          </Text>
           <TouchableOpacity onPress={handleEditProfile}>
             <Ionicons name="create-outline" size={22} color={COLORS.primary} />
           </TouchableOpacity>
         </View>
-        
+
         <View style={profileStyle.infoCard}>
           {/* Información personal */}
           <View style={profileStyle.infoRow}>
@@ -170,7 +182,10 @@ export default function PerfilAdminScreen() {
             </View>
             <View style={profileStyle.infoContent}>
               <Text style={profileStyle.infoLabel}>ID de usuario</Text>
-              <Text style={[profileStyle.infoValue, profileStyle.userIdText]} numberOfLines={1}>
+              <Text
+                style={[profileStyle.infoValue, profileStyle.userIdText]}
+                numberOfLines={1}
+              >
                 {userData.uid}
               </Text>
             </View>
@@ -185,7 +200,9 @@ export default function PerfilAdminScreen() {
             </View>
             <View style={profileStyle.infoContent}>
               <Text style={profileStyle.infoLabel}>Cuenta creada</Text>
-              <Text style={profileStyle.infoValue}>{formatDate(userData.joinDate)}</Text>
+              <Text style={profileStyle.infoValue}>
+                {formatDate(userData.joinDate)}
+              </Text>
             </View>
           </View>
 
@@ -198,7 +215,9 @@ export default function PerfilAdminScreen() {
             </View>
             <View style={profileStyle.infoContent}>
               <Text style={profileStyle.infoLabel}>Último acceso</Text>
-              <Text style={profileStyle.infoValue}>{formatDate(userData.lastLogin)}</Text>
+              <Text style={profileStyle.infoValue}>
+                {formatDate(userData.lastLogin)}
+              </Text>
             </View>
           </View>
         </View>
@@ -207,9 +226,9 @@ export default function PerfilAdminScreen() {
       {/* Acciones rápidas */}
       <View style={profileStyle.actionsSection}>
         <Text style={profileStyle.sectionTitle}>Acciones</Text>
-        
+
         <View style={profileStyle.actionsGrid}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={profileStyle.actionButton}
             onPress={handleEditProfile}
           >
@@ -218,30 +237,33 @@ export default function PerfilAdminScreen() {
             </View>
             <View style={profileStyle.actionTextContainer}>
               <Text style={profileStyle.actionTitle}>Editar perfil</Text>
-              <Text style={profileStyle.actionSubtitle}>Actualizar información</Text>
+              <Text style={profileStyle.actionSubtitle}>
+                Actualizar información
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#ccc" />
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={profileStyle.actionButton}
-            onPress={() => router.push('/(forms)/formChangePass')}
+            onPress={() => router.push("/(forms)/formChangePass")}
           >
             <View style={[profileStyle.actionIcon, profileStyle.securityIcon]}>
               <Ionicons name="lock-closed-outline" size={22} color="#fff" />
             </View>
             <View style={profileStyle.actionTextContainer}>
               <Text style={profileStyle.actionTitle}>Seguridad</Text>
-              <Text style={profileStyle.actionSubtitle}>Cambiar contraseña</Text>
+              <Text style={profileStyle.actionSubtitle}>
+                Cambiar contraseña
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#ccc" />
           </TouchableOpacity>
-
         </View>
       </View>
 
       {/* Botón de cerrar sesión */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={profileStyle.logoutButton}
         onPress={handleLogout}
         disabled={loading}

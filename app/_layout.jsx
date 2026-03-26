@@ -1,7 +1,7 @@
 // app/_layout.jsx - VERSIÓN SIMPLE SIN BUCLE
 
 import { Stack, useRouter } from "expo-router";
-import { useEffect } from "react"; // 👈 Agrega esto
+import { useEffect, useState } from "react"; // 👈 Agrega esto
 import { ActivityIndicator, Text, View } from "react-native";
 import { COLORS } from "../constants/colors";
 import SafeScreen from "./components/safeScreen";
@@ -20,6 +20,7 @@ function AuthHandler() {
   const { loading: inventoryLoading, initialized: inventoryInitialized } =
     useInventory();
   const router = useRouter();
+  const [hasRedirected, setHasRedirected] = useState(false);
 
   useEffect(() => {
     console.log("📊 [LAYOUT] Estado:", {
@@ -30,6 +31,7 @@ function AuthHandler() {
       hasUser: !!user,
       hasUserData: !!userData,
       role: userData?.role,
+      hasRedirected,
     });
   }, [
     authLoading,
@@ -38,6 +40,7 @@ function AuthHandler() {
     inventoryInitialized,
     user,
     userData,
+    hasRedirected,
   ]);
 
   // 1. Loading
