@@ -188,6 +188,8 @@ export const AuthProvider = ({ children }) => {
       }
 
       console.log("=".repeat(40));
+
+      //return data
     } catch (error) {
       console.error("❌ [AUTH] Error en loadUserData:", error);
       console.error("   Código:", error.code);
@@ -214,7 +216,7 @@ export const AuthProvider = ({ children }) => {
 
       // 🔥 FIX CRÍTICO: Esperar explícitamente a que cargue userData
       console.log("📥 [AUTH] Cargando userData después de login...");
-      await loadUserData(firebaseUser.uid);
+      const loadedUserData = await loadUserData(firebaseUser.uid);
 
       // 🔥 NUEVO: Crear una promesa para esperar la actualización del estado
       // Esperar un momento para que React actualice el estado
@@ -229,6 +231,8 @@ export const AuthProvider = ({ children }) => {
         success: true,
         user: firebaseUser,
         message: "Inicio de sesión exitoso",
+        userData: loadedUserData,
+        role: loadedUserData?.role,
       };
     } catch (error) {
       console.error("❌ [AUTH] Error en login:", error);

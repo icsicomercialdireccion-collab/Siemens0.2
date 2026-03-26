@@ -1,4 +1,5 @@
 import { homeStyles } from "@/assets/styles/home.style";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
@@ -12,13 +13,22 @@ import {
 import ButtomInventoryG from "../components/buttomInventoryG";
 import InventoryCard from "../components/cardInventory";
 import InventoryTitle from "../components/inventoryTitle";
+import { useAuth } from "../contexts/AutContext";
 import { useInventory } from "../contexts/InventoryContext";
 
 const HomeScreen = () => {
   const router = useRouter();
-  const { userInventories, loading, refreshInventories } = useInventory();
-
+  const { userInventories, loading, refreshInventories, initialized } =
+    useInventory();
+  const { userData } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
+
+  if (userInventories.length > 0) {
+    console.log(
+      "  - Inventarios:",
+      userInventories.map((i) => `${i.mes} ${i.anio}`).join(", "),
+    );
+  }
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -50,22 +60,30 @@ const HomeScreen = () => {
     );
   }
 
-  if (userInventories.length === 0) {
+  if (!loading && initialized && userInventories.length === 0) {
     return (
       <View style={homeStyles.container}>
         <View
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
-          <Text style={{ fontSize: 18, marginBottom: 10 }}>
+          <Ionicons name="folder-open-outline" size={60} color="#ccc" />
+          <Text style={{ fontSize: 18, marginTop: 20, marginBottom: 10 }}>
             No has creado inventarios aún
           </Text>
-          <Text style={{ color: "#666" }}>
-            Crea tu primer inventario desde el botón +
+          <Text
+            style={{
+              color: "#666",
+              textAlign: "center",
+              paddingHorizontal: 40,
+            }}
+          >
+            Hola {userData?.displayName || "Administrador"}, comienza creando tu
+            primer inventario
           </Text>
         </View>
         <ButtomInventoryG
           onPress={() => router.push("/(forms)/formInventory")}
-          label="Agregar Inventario"
+          label="Crear Inventario"
         />
       </View>
     );
