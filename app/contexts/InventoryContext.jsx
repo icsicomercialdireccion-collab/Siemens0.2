@@ -253,6 +253,7 @@ export const InventoryProvider = ({ children }) => {
         anio: parseInt(inventoryData.anio),
         estado: inventoryData.estado,
         localidad: inventoryData.localidad,
+        ubicacion: inventoryData.ubicacion || "",
         createdBy: currentUser.uid,
         createdByName:
           currentUser.displayName || currentUser.email?.split("@")[0],
@@ -274,6 +275,7 @@ export const InventoryProvider = ({ children }) => {
         mes: inventoryData.mes,
         anio: parseInt(inventoryData.anio),
         estado: inventoryData.estado,
+        ubicacion: inventoryData.ubicacion || "",
         localidad: inventoryData.localidad,
         createdBy: currentUser.uid,
         createdByName:

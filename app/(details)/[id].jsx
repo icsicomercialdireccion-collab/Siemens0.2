@@ -267,6 +267,20 @@ export default function DetailsScreen() {
 
             {/* Información en 2 filas (eliminadas estadísticas) */}
             <View style={detailStyle.infoContainer}>
+              <View style={detailStyle.infoRow}>
+                <View style={detailStyle.infoItem}>
+                  <Ionicons name="location-sharp" size={18} color="#FFD6D6" />
+                  <View style={detailStyle.infoContent}>
+                    <Text style={detailStyle.infoLabel}>
+                      Ubicación específica
+                    </Text>
+                    <Text style={detailStyle.infoValue}>
+                      {inventory.ubicacion}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
               {/* Fila 1: Ubicación y Estado */}
               <View style={detailStyle.infoRow}>
                 <View style={detailStyle.infoItem}>
