@@ -29,28 +29,34 @@ export const InventoryProvider = ({ children }) => {
   // ==================== FUNCIONES BÁSICAS ====================
 
   const fetchUserInventories = async (userId) => {
-    if (!userId) {
-      console.log("⚠️ fetchUserInventories: userId es undefined");
-      return [];
-    }
+    if (!userId) return [];
 
     try {
-      console.log("🔍 Buscando inventarios con createdBy ==", userId);
-
+      // 👇 QUITAR orderBy TEMPORALMENTE
       const q = query(
         collection(db, "inventarios"),
         where("createdBy", "==", userId),
+        // orderBy("updatedAt", "desc")  // 👈 COMENTAR ESTA LÍNEA
       );
+
       const snapshot = await getDocs(q);
 
-      console.log(`📊 Encontrados ${snapshot.docs.length} documentos`);
-
-      return snapshot.docs.map((doc) => ({
+      // Ordenar manualmente en el cliente
+      const inventories = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate?.() || new Date(),
         updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
       }));
+
+      // 👈 ORDENAR MANUALMENTE (más reciente primero)
+      return inventories.sort((a, b) => {
+        const dateA =
+          a.updatedAt instanceof Date ? a.updatedAt : new Date(a.updatedAt);
+        const dateB =
+          b.updatedAt instanceof Date ? b.updatedAt : new Date(b.updatedAt);
+        return dateB - dateA; // Descendente
+      });
     } catch (error) {
       console.error("❌ Error fetchUserInventories:", error);
       return [];
@@ -59,13 +65,34 @@ export const InventoryProvider = ({ children }) => {
 
   const fetchAllInventories = async () => {
     try {
-      const snapshot = await getDocs(collection(db, "inventarios"));
-      return snapshot.docs.map((doc) => ({
+      console.log("🔍 Buscando TODOS los inventarios (admin)");
+
+      // 👈 SIN orderBy en la consulta (para evitar crear otro índice)
+      const q = query(collection(db, "inventarios"));
+
+      const snapshot = await getDocs(q);
+
+      console.log(`📊 Encontrados ${snapshot.docs.length} documentos en total`);
+
+      const inventories = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate?.() || new Date(),
         updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
       }));
+
+      // 👈 ORDENAR MANUALMENTE EN EL CLIENTE (más reciente primero)
+      const sortedInventories = inventories.sort((a, b) => {
+        const dateA =
+          a.updatedAt instanceof Date ? a.updatedAt : new Date(a.updatedAt);
+        const dateB =
+          b.updatedAt instanceof Date ? b.updatedAt : new Date(b.updatedAt);
+        return dateB - dateA; // Descendente
+      });
+
+      console.log(`📊 Inventarios ordenados: ${sortedInventories.length}`);
+
+      return sortedInventories;
     } catch (error) {
       console.error("Error fetchAllInventories:", error);
       return [];
