@@ -26,6 +26,7 @@ const FormInventory = () => {
     anio: "",
     estado: "",
     localidad: "",
+    ubicacion: "",
   });
 
   const [errors, setErrors] = useState({});
@@ -59,6 +60,10 @@ const FormInventory = () => {
       newErrors.localidad = "La localidad es requerida";
     }
 
+    if (!formData.ubicacion.trim()) {
+      newErrors.ubicacion = "La ubicación es requerida";
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -73,6 +78,7 @@ const FormInventory = () => {
       anio: parseInt(formData.anio.trim()),
       estado: formData.estado.trim(),
       localidad: formData.localidad.trim(),
+      ubicacion: formData.ubicacion.trim(),
     };
 
     const result = await createInventory(datosParaEnviar);
@@ -307,6 +313,47 @@ const FormInventory = () => {
                     <Text style={formStyle.errorText}>{errors.localidad}</Text>
                   </View>
                 )}
+              </View>
+
+              {/* 👈 NUEVO CAMPO: Ubicación Exacta */}
+              <View style={formStyle.inputGroup}>
+                <Text style={formStyle.label}>
+                  Ubicación específica <Text style={formStyle.required}>*</Text>
+                </Text>
+                <View style={formStyle.inputWrapper}>
+                  <Ionicons
+                    name="location-outline"
+                    size={20}
+                    color={COLORS.gray}
+                    style={formStyle.inputIcon}
+                  />
+                  <TextInput
+                    style={[
+                      formStyle.input,
+                      errors.ubicacion && formStyle.inputError,
+                    ]}
+                    placeholder="Ej: Planta baja, oficina 101, bodega norte"
+                    placeholderTextColor={COLORS.gray}
+                    value={formData.ubicacion}
+                    onChangeText={(value) => handleChange("ubicacion", value)}
+                    editable={!loading}
+                    multiline
+                    numberOfLines={2}
+                  />
+                </View>
+                {errors.ubicacion && (
+                  <View style={formStyle.errorContainer}>
+                    <Ionicons
+                      name="alert-circle"
+                      size={14}
+                      color={COLORS.error}
+                    />
+                    <Text style={formStyle.errorText}>{errors.ubicacion}</Text>
+                  </View>
+                )}
+                <Text style={formStyle.helperText}>
+                  Especifica el lugar exacto donde se realizará el inventario
+                </Text>
               </View>
 
               {/* Botón de envío */}
