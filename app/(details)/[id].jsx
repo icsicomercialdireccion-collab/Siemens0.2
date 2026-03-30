@@ -288,7 +288,7 @@ export default function DetailsScreen() {
                   <View style={detailStyle.infoContent}>
                     <Text style={detailStyle.infoLabel}>Estado</Text>
                     <Text style={detailStyle.infoValue}>
-                      {statusConfig.label}
+                      {inventory.localidad}
                     </Text>
                   </View>
                 </View>

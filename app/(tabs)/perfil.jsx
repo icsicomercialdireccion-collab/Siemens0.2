@@ -16,25 +16,52 @@ import { COLORS } from "../../constants/colors";
 import { useAuth } from "../contexts/AutContext";
 
 export default function PerfilAdminScreen() {
-  const { user, logout, loading: authLoading } = useAuth();
+  const {
+    user,
+    logout,
+    loading: authLoading,
+    userData: authUserData,
+  } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [userData, setUserData] = useState(null);
 
   useEffect(() => {
-    if (user) {
-      // Aquí podrías obtener más datos del usuario si es necesario
+    if (user && authUserData) {
+      // 👈 USAR LOS DATOS REALES DEL CONTEXTO
       setUserData({
-        name: user.displayName || "Administrador",
+        name: authUserData.displayName || user.displayName || "Usuario",
         email: user.email || "No especificado",
-        role: "Administrador", // Esto debería venir de tu base de datos
+        role: authUserData.role === "admin" ? "Administrador" : "Usuario", // 👈 ROL REAL
+        avatarUrl: user.photoURL,
+        joinDate:
+          authUserData.createdAt ||
+          user.metadata?.creationTime ||
+          new Date().toISOString(),
+        lastLogin: user.metadata?.lastSignInTime || new Date().toISOString(),
+        uid: user.uid,
+      });
+    } else if (user) {
+      // Fallback si no hay userData en el contexto
+      console.log("⚠️ No hay userData en el contexto, usando datos básicos");
+      setUserData({
+        name: user.displayName || "Usuario",
+        email: user.email || "No especificado",
+        role: "Usuario", // 👈 DEFAULT
         avatarUrl: user.photoURL,
         joinDate: user.metadata?.creationTime || new Date().toISOString(),
         lastLogin: user.metadata?.lastSignInTime || new Date().toISOString(),
         uid: user.uid,
       });
     }
-  }, [user]);
+  }, [user, authUserData]); // 👈 DEPENDER DE authUserData
+
+  // 👈 FUNCIÓN PARA MOSTRAR EL ROL EN ESPAÑOL
+  const getRoleLabel = (role) => {
+    if (role === "admin") return "Administrador";
+    if (role === "user") return "Usuario";
+    return role || "Usuario";
+  };
 
   const handleLogout = async () => {
     Alert.alert(
@@ -141,7 +168,9 @@ export default function PerfilAdminScreen() {
 
         <View style={profileStyle.roleBadge}>
           <Ionicons name="shield-checkmark" size={16} color="#fff" />
-          <Text style={profileStyle.roleText}>{userData.role}</Text>
+          <Text style={profileStyle.roleText}>
+            {getRoleLabel(authUserData?.role)}
+          </Text>
         </View>
       </View>
 
