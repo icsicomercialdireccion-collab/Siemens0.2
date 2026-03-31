@@ -25,6 +25,27 @@ export default {
     // ✅ PLUGINS SIMPLIFICADOS - SIN expo-media-library
     plugins: [
       [
+        "expo-media-library",
+        {
+          photosPermission:
+            "Permite a Siemens acceder a tus fotos para guardar imágenes de inventario.",
+          savePhotosPermission:
+            "Permite a Siemens guardar fotos en tu galería.",
+          isAccessMediaLocationEnabled: true,
+          microphonePermission:
+            "Permite a Siemens acceder al micrófono para funciones de cámara.",
+          // Configuración para Android 13+
+          androidPermissions: [
+            "android.permission.READ_EXTERNAL_STORAGE",
+            "android.permission.WRITE_EXTERNAL_STORAGE",
+            "android.permission.READ_MEDIA_IMAGES",
+            "android.permission.READ_MEDIA_VIDEO",
+            "android.permission.READ_MEDIA_AUDIO",
+            "android.permission.RECORD_AUDIO",
+          ],
+        },
+      ],
+      [
         "expo-build-properties",
         {
           android: {
@@ -52,8 +73,8 @@ export default {
           "Esta app usa la cámara para escanear códigos de barras y tomar fotos.",
         NSPhotoLibraryUsageDescription:
           "Esta app necesita acceso a la galería para seleccionar fotos.",
-        // ❌ ELIMINAR NSPhotoLibraryAddUsageDescription (solo si guardas fotos)
-        // ❌ ELIMINAR NSMicrophoneUsageDescription (solo si usas video/audio)
+        NSPhotoLibraryAddUsageDescription:
+          "Esta app guarda fotos en tu galería.",
       },
     },
 
@@ -77,13 +98,13 @@ export default {
       // Si usas diferentes flavors
       flavor: "production",
       permissions: [
-        "android.permission.CAMERA", // Para escanear y tomar fotos
-        // Para react-native-image-picker (solo lectura):
+        "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
-        // ❌ ELIMINAR WRITE_EXTERNAL_STORAGE (solo si guardas fotos)
-        // ❌ ELIMINAR RECORD_AUDIO (solo si usas video)
-        // Para Android 13+:
+        "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO", // 👈 Para compatibilidad
+        "android.permission.READ_MEDIA_AUDIO", // 👈 Requerido por media-library
+        "android.permission.RECORD_AUDIO",
       ],
       cameraPermission:
         "Permite que $(PRODUCT_NAME) acceda a tu cámara para escanear códigos de barras y tomar fotos.",

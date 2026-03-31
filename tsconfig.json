@@ -3,9 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"]
     }
   },
   "include": [
@@ -14,6 +12,7 @@
     "app/_layout.jsx",
     "**/*.js",
     "**/*.jsx",
-    "app/(auth)/login.jsx"
+    "app/(auth)/login.jsx",
+    "app/types/**/*.d.ts"
   ]
 }

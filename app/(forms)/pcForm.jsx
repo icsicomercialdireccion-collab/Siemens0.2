@@ -7,9 +7,9 @@ import {
   Alert,
   Image,
   Modal,
-  Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { formEquipmentStyle } from "../../assets/styles/formEquitpment.style";
 import { COLORS } from "../../constants/colors";
+import LocalStorageService from "../../services/localStorageService";
 import { useEquipment } from "../contexts/EquipmentContext";
 
 // ✅ USAR expo-document-picker (más estable para Expo)
@@ -44,6 +45,11 @@ export default function PcForm() {
     observaciones: "",
   });
 
+  // 👈 Estado para guardar imagen localmente
+  const [saveImageLocally, setSaveImageLocally] = useState(true);
+  const [imageSavedLocally, setImageSavedLocally] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
   // Estados del scanner
   const [showScanner, setShowScanner] = useState(false);
   const [scanned, setScanned] = useState(false);
@@ -55,6 +61,33 @@ export default function PcForm() {
 
   const scannerCameraRef = useRef(null);
   const photoCameraRef = useRef(null);
+
+  // 👈 FUNCIÓN: Guardar imagen en galería
+  const saveImageToDevice = async (imageUri, serial) => {
+    if (!saveImageLocally) return { success: false, skipped: true };
+
+    try {
+      console.log("💾 Guardando imagen localmente para serial:", serial);
+
+      const fileName = `equipo_${serial}_${Date.now()}.jpg`;
+      const result = await LocalStorageService.saveImageToGallery(
+        imageUri,
+        fileName,
+      );
+
+      if (result.success) {
+        setImageSavedLocally(true);
+        console.log("✅ Imagen guardada localmente:", result.uri);
+        return result;
+      } else {
+        console.log("⚠️ No se pudo guardar imagen localmente:", result.error);
+        return result;
+      }
+    } catch (error) {
+      console.error("❌ Error guardando imagen local:", error);
+      return { success: false, error: error.message };
+    }
+  };
 
   // ✅ MANEJAR CÓDIGO ESCANEADO
   const handleBarCodeScanned = ({ type, data }) => {
@@ -92,12 +125,12 @@ export default function PcForm() {
       }
 
       setScanned(false);
-      // 3. Liberar memoria antes de abrir
+      // Liberar memoria antes de abrir
       if (global.gc) {
         global.gc();
       }
 
-      // 4. Pequeña pausa para que se libere memoria
+      // Pequeña pausa para que se libere memoria
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       setShowScanner(true);
@@ -128,15 +161,9 @@ export default function PcForm() {
         multiple: false,
       });
 
-      console.log("Resultado completo:", JSON.stringify(result, null, 2));
-
-      // ✅ CORREGIDO: Chequear "canceled" en lugar de "type"
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const selectedImage = result.assets[0];
-        console.log(
-          "✅ Imagen seleccionada correctamente:",
-          selectedImage.name,
-        );
+        console.log("✅ Imagen seleccionada:", selectedImage.name);
 
         setFormData((prev) => ({
           ...prev,
@@ -144,14 +171,14 @@ export default function PcForm() {
         }));
         setImagePreview(selectedImage.uri);
 
+        // Resetear estado de guardado local
+        setImageSavedLocally(false);
+
         Alert.alert(
           "✅ Imagen seleccionada",
           `"${selectedImage.name}" cargada correctamente`,
           [{ text: "OK" }],
         );
-      } else {
-        console.log("❌ Usuario canceló o no seleccionó");
-        // No hacer nada si el usuario canceló
       }
     } catch (error) {
       console.error("❌ Error seleccionando imagen:", error);
@@ -185,7 +212,7 @@ export default function PcForm() {
     if (photoCameraRef.current) {
       try {
         const photoOptions = {
-          quality: 0.7,
+          quality: 0.4,
           base64: false,
           exif: false,
           skipProcessing: true,
@@ -195,27 +222,14 @@ export default function PcForm() {
           await photoCameraRef.current.takePictureAsync(photoOptions);
         setShowCameraModal(false);
 
-        setTimeout(() => {
-          if (photoCameraRef.current) {
-            // Forzar limpieza
-            photoCameraRef.current = null;
-          }
-        }, 500);
-
         setFormData((prev) => ({
           ...prev,
           imagen: photo.uri,
         }));
         setImagePreview(photo.uri);
 
-        if (Platform.OS === "android") {
-          setTimeout(() => {
-            if (global.gc) {
-              global.gc();
-              console.log("🧹 GC forzado después de foto");
-            }
-          }, 1000);
-        }
+        // Resetear estado de guardado local
+        setImageSavedLocally(false);
 
         Alert.alert("Foto tomada", "Foto guardada exitosamente", [
           { text: "OK" },
@@ -233,49 +247,104 @@ export default function PcForm() {
     setCameraType((current) => (current === "back" ? "front" : "back"));
   };
 
+  // ✅ REGISTRAR EQUIPO CON GUARDADO AUTOMÁTICO
   const handleSubmit = async () => {
     if (!formData.serial.trim()) {
       Alert.alert("Error", "El número de serie es requerido");
       return;
     }
 
-    const equipmentData = {
-      serial: formData.serial.trim().toUpperCase(),
-      estado: formData.notas,
-      observaciones: formData.observaciones.trim(),
-      imagenUrl: formData.imagen,
-      tipo: "computadora",
-      createdAt: new Date().toISOString(),
-    };
+    if (isSaving) return;
+    setIsSaving(true);
 
-    const result = await createEquipment(inventoryId, equipmentData);
+    const serial = formData.serial.trim().toUpperCase();
+    let localImageUri = null;
 
-    if (result.success) {
-      Alert.alert("¡Éxito!", "Equipo registrado correctamente", [
-        {
-          text: "Agregar otro",
-          onPress: () => {
-            setFormData({
-              serial: "",
-              notas: "nuevo",
-              imagen: null,
-              observaciones: "",
-            });
-            setImagePreview(null);
-          },
-        },
-        {
-          text: "Volver a detalles",
-          onPress: () => router.back(),
-        },
-      ]);
-    } else {
-      // 👈 MENSAJE ESPECÍFICO PARA SERIAL DUPLICADO
-      if (result.code === "DUPLICATE_SERIAL") {
-        Alert.alert("⚠️ Serial Duplicado", result.error, [{ text: "OK" }]);
-      } else {
-        Alert.alert("Error", result.error || "No se pudo registrar el equipo");
+    try {
+      // 1. Si hay imagen y está activado el guardado local, guardar primero
+      if (formData.imagen && saveImageLocally) {
+        const saveResult = await saveImageToDevice(formData.imagen, serial);
+
+        if (saveResult.success) {
+          localImageUri = saveResult.uri;
+          console.log("✅ Imagen guardada localmente en:", localImageUri);
+        } else if (!saveResult.skipped) {
+          console.log(
+            "⚠️ No se pudo guardar imagen localmente, continuando...",
+          );
+          // Mostrar alerta solo si no fue por permiso denegado
+          if (saveResult.error?.includes("Permiso")) {
+            Alert.alert(
+              "Permiso denegado",
+              "No se pudo guardar la imagen en la galería. Verifica los permisos de la app.",
+              [{ text: "OK" }],
+            );
+          }
+        }
       }
+
+      // 2. Preparar datos para Firebase
+      const equipmentData = {
+        serial: serial,
+        estado: formData.notas,
+        observaciones: formData.observaciones.trim(),
+        imagenUrl: formData.imagen,
+        tipo: "computadora",
+        createdAt: new Date().toISOString(),
+        localImageUri: localImageUri,
+      };
+
+      // 3. Crear equipo en Firebase
+      const result = await createEquipment(inventoryId, equipmentData);
+
+      if (result.success) {
+        // Mensaje de éxito personalizado
+        let successMessage = "✅ Equipo registrado correctamente";
+        if (localImageUri) {
+          successMessage =
+            "✅ Equipo registrado\n📸 Imagen guardada en tu galería";
+        } else if (formData.imagen && saveImageLocally) {
+          successMessage = "✅ Imagen guardada en la galería";
+        } else if (formData.imagen) {
+          successMessage =
+            "✅ Equipo registrado\n📸 Imagen guardada en la nube";
+        }
+
+        Alert.alert("¡Éxito!", successMessage, [
+          {
+            text: "Agregar otro",
+            onPress: () => {
+              setFormData({
+                serial: "",
+                notas: "nuevo",
+                imagen: null,
+                observaciones: "",
+              });
+              setImagePreview(null);
+              setImageSavedLocally(false);
+            },
+          },
+          {
+            text: "Volver a detalles",
+            onPress: () => router.back(),
+          },
+        ]);
+      } else {
+        // Mensaje específico para serial duplicado
+        if (result.code === "DUPLICATE_SERIAL") {
+          Alert.alert("⚠️ Serial Duplicado", result.error, [{ text: "OK" }]);
+        } else {
+          Alert.alert(
+            "Error",
+            result.error || "No se pudo registrar el equipo",
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Error en handleSubmit:", error);
+      Alert.alert("Error", "Ocurrió un error inesperado");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -297,6 +366,31 @@ export default function PcForm() {
             <Text style={formEquipmentStyle.subtitle}>
               Inventario: {inventoryId?.substring(0, 8)}...
             </Text>
+          </View>
+
+          {/* 👈 SECCIÓN DE GUARDADO AUTOMÁTICO */}
+          <View style={formEquipmentStyle.section}>
+            <View style={formEquipmentStyle.saveLocalContainer}>
+              <View style={{ flex: 1 }}>
+                <Text style={formEquipmentStyle.saveLocalLabel}>
+                  📸 Guardado automático en galería
+                </Text>
+                <Text style={formEquipmentStyle.saveLocalSubLabel}>
+                  La imagen se guardará en tu teléfono al registrar el equipo
+                </Text>
+              </View>
+              <Switch
+                value={saveImageLocally}
+                onValueChange={setSaveImageLocally}
+                trackColor={{ false: "#767577", true: COLORS.primary }}
+                thumbColor={saveImageLocally ? "#fff" : "#f4f3f4"}
+              />
+            </View>
+            {imageSavedLocally && (
+              <Text style={formEquipmentStyle.successText}>
+                ✅ Imagen guardada en tu galería
+              </Text>
+            )}
           </View>
 
           {/* SECCIÓN 1: NÚMERO DE SERIE CON SCANNER */}
@@ -321,14 +415,14 @@ export default function PcForm() {
                   onChangeText={(text) => handleInputChange("serial", text)}
                   placeholder="Ej: SN123456789ABC"
                   placeholderTextColor="#999"
-                  editable={!loading}
+                  editable={!loading && !isSaving}
                   autoCapitalize="characters"
                   maxLength={50}
                 />
                 <TouchableOpacity
                   style={formEquipmentStyle.scannerButton}
                   onPress={openScanner}
-                  disabled={loading}
+                  disabled={loading || isSaving}
                 >
                   <Ionicons name="barcode-outline" size={24} color="#fff" />
                 </TouchableOpacity>
@@ -338,7 +432,7 @@ export default function PcForm() {
               <TouchableOpacity
                 style={formEquipmentStyle.scannerFullButton}
                 onPress={openScanner}
-                disabled={loading}
+                disabled={loading || isSaving}
               >
                 <Ionicons
                   name="barcode-outline"
@@ -357,7 +451,7 @@ export default function PcForm() {
             </View>
           </View>
 
-          {/* SECCIÓN 2: ESTADO DEL EQUIPO (NOTAS) */}
+          {/* SECCIÓN 2: ESTADO DEL EQUIPO */}
           <View style={formEquipmentStyle.section}>
             <Text style={formEquipmentStyle.sectionTitle}>
               📝 Estado del Equipo
@@ -372,7 +466,7 @@ export default function PcForm() {
                   selectedValue={formData.notas}
                   onValueChange={(value) => handleInputChange("notas", value)}
                   style={formEquipmentStyle.picker}
-                  enabled={!loading}
+                  enabled={!loading && !isSaving}
                 >
                   <Picker.Item label="Equipo Nuevo" value="nuevo" />
                   <Picker.Item label="Equipo Usado" value="usado" />
@@ -401,7 +495,7 @@ export default function PcForm() {
                   formEquipmentStyle.galleryButton,
                 ]}
                 onPress={pickImage}
-                disabled={loading}
+                disabled={loading || isSaving}
               >
                 <Ionicons name="image-outline" size={24} color="#fff" />
                 <Text style={formEquipmentStyle.imageButtonText}>Galería</Text>
@@ -413,7 +507,7 @@ export default function PcForm() {
                   formEquipmentStyle.cameraButton,
                 ]}
                 onPress={takePhoto}
-                disabled={loading}
+                disabled={loading || isSaving}
               >
                 <Ionicons name="camera-outline" size={24} color="#fff" />
                 <Text style={formEquipmentStyle.imageButtonText}>Cámara</Text>
@@ -434,8 +528,9 @@ export default function PcForm() {
                   onPress={() => {
                     setImagePreview(null);
                     handleInputChange("imagen", null);
+                    setImageSavedLocally(false);
                   }}
-                  disabled={loading}
+                  disabled={loading || isSaving}
                 >
                   <Ionicons
                     name="close-circle"
@@ -476,7 +571,7 @@ export default function PcForm() {
                 }
                 placeholder="Ej: Equipo con detalles en la carcasa, falta cable de poder, etc."
                 placeholderTextColor="#999"
-                editable={!loading}
+                editable={!loading && !isSaving}
                 multiline
                 numberOfLines={4}
                 textAlignVertical="top"
@@ -496,7 +591,7 @@ export default function PcForm() {
                 formEquipmentStyle.cancelButton,
               ]}
               onPress={() => router.back()}
-              disabled={loading}
+              disabled={loading || isSaving}
             >
               <Ionicons name="arrow-back" size={20} color={COLORS.text} />
               <Text style={formEquipmentStyle.cancelButtonText}> Cancelar</Text>
@@ -506,18 +601,17 @@ export default function PcForm() {
               style={[
                 formEquipmentStyle.button,
                 formEquipmentStyle.submitButton,
-                loading && formEquipmentStyle.buttonDisabled,
+                (loading || isSaving) && formEquipmentStyle.buttonDisabled,
               ]}
               onPress={handleSubmit}
-              disabled={loading}
+              disabled={loading || isSaving}
             >
-              {loading ? (
+              {loading || isSaving ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <>
                   <Ionicons name="save-outline" size={20} color="#fff" />
                   <Text style={formEquipmentStyle.submitButtonText}>
-                    {" "}
                     Registrar Equipo
                   </Text>
                 </>
@@ -548,7 +642,7 @@ export default function PcForm() {
             <View style={{ width: 40 }} />
           </View>
 
-          {/* ✅ USAR CameraView */}
+          {/* CameraView */}
           {permission?.granted ? (
             <View style={formEquipmentStyle.cameraContainer}>
               <CameraView
