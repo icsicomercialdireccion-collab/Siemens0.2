@@ -10,6 +10,7 @@ import {
   Modal,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -17,6 +18,7 @@ import {
 } from "react-native";
 import { FormEditStyle } from "../../assets/styles/formEditEquipment.style";
 import { COLORS } from "../../constants/colors";
+import LocalStorageService from "../../services/localStorageService";
 import { useEquipment } from "../contexts/EquipmentContext";
 
 // ✅ USAR expo-document-picker en lugar de expo-image-picker
@@ -40,6 +42,10 @@ export default function EditEquipmentScreen() {
     imagenUrl: null,
     currentImageUrl: null,
   });
+
+  const [saveImageLocally, setSaveImageLocally] = useState(true);
+  const [imageSavedLocally, setImageSavedLocally] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const [image, setImage] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -70,6 +76,32 @@ export default function EditEquipmentScreen() {
       }
     }
   }, [equipmentData]);
+
+  const saveImageToDevice = async (imageUri, serial) => {
+    if (!saveImageLocally) return { success: false, skipped: true };
+
+    try {
+      console.log("💾 Guardando imagen localmente para serial:", serial);
+
+      const fileName = `equipo_${serial}_${Date.now()}.jpg`;
+      const result = await LocalStorageService.saveImageToGallery(
+        imageUri,
+        fileName,
+      );
+
+      if (result.success) {
+        setImageSavedLocally(true);
+        console.log("✅ Imagen guardada localmente:", result.uri);
+        return result;
+      } else {
+        console.log("⚠️ No se pudo guardar imagen localmente:", result.error);
+        return result;
+      }
+    } catch (error) {
+      console.error("❌ Error guardando imagen local:", error);
+      return { success: false, error: error.message };
+    }
+  };
 
   // ✅ FUNCIÓN PARA SELECCIONAR IMAGEN DESDE GALERÍA
   const pickImage = async () => {
@@ -208,48 +240,128 @@ export default function EditEquipmentScreen() {
   };
 
   const handleUpdate = async () => {
-    // Validaciones
     if (!formData.serial.trim()) {
       Alert.alert("Error", "El número de serie es requerido");
       return;
     }
 
-    if (uploading) {
-      Alert.alert("Espera", "La imagen se está subiendo, por favor espera...");
+    if (uploading || isSaving) {
+      Alert.alert("Espera", "Procesando imagen, por favor espera...");
       return;
     }
 
-    try {
-      let finalImageUrl = formData.currentImageUrl;
-      let hasNewImage = false;
+    const serial = formData.serial.trim().toUpperCase();
+    let localImageUri = null;
 
-      // Si hay una nueva imagen seleccionada, subirla
+    try {
+      // 1. Si hay nueva imagen y está activado el guardado local, guardar primero
+      if (image && image !== formData.currentImageUrl && saveImageLocally) {
+        console.log("💾 Guardando imagen localmente antes de actualizar...");
+        const saveResult = await saveImageToDevice(image, serial);
+
+        if (saveResult.success) {
+          localImageUri = saveResult.uri;
+          console.log("✅ Imagen guardada localmente en:", localImageUri);
+        } else if (!saveResult.skipped) {
+          console.log(
+            "⚠️ No se pudo guardar imagen localmente, continuando...",
+          );
+          if (saveResult.error?.includes("Permiso")) {
+            Alert.alert(
+              "Permiso denegado",
+              "No se pudo guardar la imagen en la galería. Verifica los permisos de la app.",
+              [{ text: "OK" }],
+            );
+          }
+        }
+      }
+
+      // 2. Subir nueva imagen a Firebase Storage si es necesario
+      let finalImageUrl = formData.currentImageUrl;
+      let imageFileName = null;
+
       if (image && image !== formData.currentImageUrl) {
-        Alert.alert(
-          "Subir imagen",
-          "¿Deseas actualizar la imagen del equipo?",
-          [
-            { text: "No", style: "cancel" },
-            {
-              text: "Sí, subir imagen",
-              onPress: async () => {
-                await processUpdate(true);
-              },
-            },
-            {
-              text: "Sí, pero sin imagen",
-              onPress: async () => {
-                await processUpdate(false);
-              },
-            },
-          ],
+        setIsSaving(true);
+        const uploadResult = await uploadImageToStorage(
+          image,
+          inventoryId,
+          serial,
         );
+
+        if (uploadResult && uploadResult.url) {
+          finalImageUrl = uploadResult.url;
+          imageFileName = uploadResult.fileName;
+        }
+      } else if (
+        !image &&
+        formData.currentImageUrl &&
+        formData.imagenUrl === null
+      ) {
+        finalImageUrl = null;
+      }
+
+      // 3. Preparar datos para actualizar
+      const updateData = {
+        serial: serial,
+        estado: formData.estado,
+        observaciones: formData.observaciones.trim(),
+      };
+
+      if (finalImageUrl !== formData.currentImageUrl) {
+        updateData.imagenUrl = finalImageUrl;
+        if (imageFileName) {
+          updateData.imagenFileName = imageFileName;
+        } else if (finalImageUrl === null) {
+          updateData.imagenFileName = null;
+        }
+      }
+
+      // 4. Verificar cambios
+      const hasChanges = Object.keys(updateData).some((key) => {
+        if (key === "imagenUrl" || key === "imagenFileName") return true;
+        return updateData[key] !== originalData?.[key];
+      });
+
+      if (!hasChanges && !localImageUri) {
+        Alert.alert("Sin cambios", "No se detectaron cambios para actualizar");
+        return;
+      }
+
+      // 5. Ejecutar actualización
+      const result = await updateEquipment(
+        inventoryId,
+        equipmentId,
+        updateData,
+      );
+
+      if (result.success) {
+        // Mensaje de éxito personalizado
+        let successMessage = "✅ Equipo actualizado correctamente";
+        if (localImageUri) {
+          successMessage =
+            "✅ Equipo actualizado\n📸 Imagen guardada en tu galería";
+        } else if (image && saveImageLocally && !localImageUri) {
+          successMessage = "✅ Equipo actualizado";
+        } else if (image) {
+          successMessage =
+            "✅ Equipo actualizado\n📸 Imagen actualizada en la nube";
+        }
+
+        Alert.alert("Éxito", successMessage, [
+          {
+            text: "OK",
+            onPress: () => router.back(),
+          },
+        ]);
       } else {
-        await processUpdate(false);
+        Alert.alert("Error", result.error || "No se pudo actualizar el equipo");
       }
     } catch (error) {
-      console.error("Error en handleUpdate:", error);
-      Alert.alert("Error", "No se pudo procesar la actualización");
+      console.error("Error actualizando equipo:", error);
+      Alert.alert("Error", "Error al actualizar el equipo");
+    } finally {
+      setIsSaving(false);
+      setUploading(false);
     }
   };
 
@@ -385,6 +497,30 @@ export default function EditEquipmentScreen() {
         </View>
 
         <View style={FormEditStyle.form}>
+          <View style={FormEditStyle.section}>
+            <View style={FormEditStyle.saveLocalContainer}>
+              <View style={{ flex: 1 }}>
+                <Text style={FormEditStyle.saveLocalLabel}>
+                  📸 Guardado automático en galería
+                </Text>
+                <Text style={FormEditStyle.saveLocalSubLabel}>
+                  La imagen se guardará en tu teléfono al actualizar el equipo
+                </Text>
+              </View>
+              <Switch
+                value={saveImageLocally}
+                onValueChange={setSaveImageLocally}
+                trackColor={{ false: "#767577", true: COLORS.primary }}
+                thumbColor={saveImageLocally ? "#fff" : "#f4f3f4"}
+              />
+            </View>
+            {imageSavedLocally && (
+              <Text style={FormEditStyle.successText}>
+                ✅ Imagen guardada en tu galería
+              </Text>
+            )}
+          </View>
+
           {/* Sección de Imagen */}
           <View style={FormEditStyle.imageSection}>
             <Text style={FormEditStyle.sectionTitle}>📸 Imagen del Equipo</Text>
