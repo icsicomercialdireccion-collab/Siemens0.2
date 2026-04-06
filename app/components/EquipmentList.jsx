@@ -98,9 +98,7 @@ export default function EquipmentList({
       <View style={ListStyle.cardFooter}>
         <View style={ListStyle.dateContainer}>
           <Ionicons name="calendar-outline" size={12} color="#999" />
-          <Text style={ListStyle.dateText}>
-            {formatDate(item.createdAt?.toDate?.() || new Date())}
-          </Text>
+          <Text style={ListStyle.dateText}>{formatDate(item.updatedAt)}</Text>
         </View>
 
         {/* Botones de acción */}
@@ -207,10 +205,44 @@ const getStatusLabel = (status) => {
   }
 };
 
-const formatDate = (date) => {
-  return date.toLocaleDateString("es-ES", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+const formatDate = (dateInput) => {
+  if (!dateInput) return "Sin fecha";
+
+  try {
+    let date;
+
+    // Si es Firebase Timestamp
+    if (dateInput.toDate && typeof dateInput.toDate === "function") {
+      date = dateInput.toDate();
+    }
+    // Si ya es Date
+    else if (dateInput instanceof Date) {
+      date = dateInput;
+    }
+    // Si es string
+    else if (typeof dateInput === "string") {
+      date = new Date(dateInput);
+    }
+    // Si es número (timestamp)
+    else if (typeof dateInput === "number") {
+      date = new Date(dateInput);
+    } else {
+      return "Fecha inválida";
+    }
+
+    if (isNaN(date.getTime())) {
+      return "Fecha inválida";
+    }
+
+    return date.toLocaleDateString("es-ES", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch (error) {
+    console.error("Error formateando fecha:", error);
+    return "Error";
+  }
 };
