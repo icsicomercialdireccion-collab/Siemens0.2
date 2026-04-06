@@ -70,6 +70,22 @@ export const EquipmentProvider = ({ children }) => {
 
       const equipmentsList = querySnapshot.docs.map((doc) => {
         const data = doc.data();
+
+        let createdAt = new Date();
+        let updatedAt = new Date();
+
+        if (data.createdAt?.toDate) {
+          createdAt = data.createdAt.toDate();
+        } else if (data.createdAt) {
+          createdAt = new Date(data.createdAt);
+        }
+
+        if (data.updatedAt?.toDate) {
+          updatedAt = data.updatedAt.toDate();
+        } else if (data.updatedAt) {
+          updatedAt = new Date(data.updatedAt);
+        }
+
         return {
           id: doc.id,
           serial: data.serial || "Sin serial",
@@ -79,13 +95,7 @@ export const EquipmentProvider = ({ children }) => {
           imagenUrl: data.imagenUrl || null,
           imagenFileName: data.imagenFileName || null,
           createdAt: data.createdAt?.toDate?.() || new Date(),
-          updatedAt: data.updatedAt?.toDate?.() || new Date(),
-          ...Object.keys(data).reduce((acc, key) => {
-            if (!["createdAt", "updatedAt"].includes(key)) {
-              acc[key] = data[key];
-            }
-            return acc;
-          }, {}),
+          updatedAt: updatedAt,
         };
       });
 
@@ -279,10 +289,12 @@ export const EquipmentProvider = ({ children }) => {
         equipmentId,
       );
 
-      await updateDoc(equipmentRef, {
+      const updateData = {
         ...updates,
-        updatedAt: serverTimestamp(),
-      });
+        updatedAt: serverTimestamp(), // 👈 Esto debe estar
+      };
+
+      await updateDoc(equipmentRef, updateData);
 
       // Actualizar estado local manteniendo el orden
       setEquipments((prev) =>
