@@ -4,6 +4,7 @@ import { Stack, useRouter } from "expo-router";
 import { useEffect, useState } from "react"; // 👈 Agrega esto
 import { ActivityIndicator, Text, View } from "react-native";
 import { COLORS } from "../constants/colors";
+import ErrorBoundaty from "./components/ErrorBoundary";
 import SafeScreen from "./components/safeScreen";
 import { AuthProvider, useAuth } from "./contexts/AutContext";
 import { EquipmentProvider } from "./contexts/EquipmentContext";
@@ -128,16 +129,20 @@ const LoadingScreen = ({ message }) => (
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <ProfileProvider>
-        <InventoryProvider>
-          <EquipmentProvider>
-            <SafeScreen style={{ flex: 1, backgroundColor: COLORS.background }}>
-              <AuthHandler />
-            </SafeScreen>
-          </EquipmentProvider>
-        </InventoryProvider>
-      </ProfileProvider>
-    </AuthProvider>
+    <ErrorBoundaty>
+      <AuthProvider>
+        <ProfileProvider>
+          <InventoryProvider>
+            <EquipmentProvider>
+              <SafeScreen
+                style={{ flex: 1, backgroundColor: COLORS.background }}
+              >
+                <AuthHandler />
+              </SafeScreen>
+            </EquipmentProvider>
+          </InventoryProvider>
+        </ProfileProvider>
+      </AuthProvider>
+    </ErrorBoundaty>
   );
 }

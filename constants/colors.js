@@ -95,7 +95,8 @@ const icsiTheme = {
   card: "#FFFFFF",
   shadow: "#D91A1A",
   titleform: "#494646ff",
-  textContent: '#0000'
+  textContent: "#0000",
+  textPlaceholder: "#7F8C8D",
 };
 
 export const THEMES = {
