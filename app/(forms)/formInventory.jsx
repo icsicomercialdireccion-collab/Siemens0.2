@@ -182,7 +182,7 @@ const FormInventory = () => {
                       errors.mes && formStyle.inputError,
                     ]}
                     placeholder="Seleccione el mes"
-                    placeholderTextColor={COLORS.gray}
+                    placeholderTextColor={COLORS.textPlaceholder}
                     value={formData.mes}
                     onChangeText={(value) => handleChange("mes", value)}
                     editable={!loading}
@@ -216,7 +216,7 @@ const FormInventory = () => {
                       errors.anio && formStyle.inputError,
                     ]}
                     placeholder="Ej: 2024"
-                    placeholderTextColor={COLORS.gray}
+                    placeholderTextColor={COLORS.textPlaceholder}
                     value={formData.anio}
                     onChangeText={(value) => handleChange("anio", value)}
                     keyboardType="number-pad"
@@ -263,7 +263,7 @@ const FormInventory = () => {
                       errors.estado && formStyle.inputError,
                     ]}
                     placeholder="Estado donde se realizará el inventario"
-                    placeholderTextColor={COLORS.gray}
+                    placeholderTextColor={COLORS.textPlaceholder}
                     value={formData.estado}
                     onChangeText={(value) => handleChange("estado", value)}
                     editable={!loading}
@@ -297,7 +297,7 @@ const FormInventory = () => {
                       errors.localidad && formStyle.inputError,
                     ]}
                     placeholder="Ciudad o municipio"
-                    placeholderTextColor={COLORS.gray}
+                    placeholderTextColor={COLORS.textPlaceholder}
                     value={formData.localidad}
                     onChangeText={(value) => handleChange("localidad", value)}
                     editable={!loading}
@@ -333,7 +333,7 @@ const FormInventory = () => {
                       errors.ubicacion && formStyle.inputError,
                     ]}
                     placeholder="Ej: Planta baja, oficina 101, bodega norte"
-                    placeholderTextColor={COLORS.gray}
+                    placeholderTextColor={COLORS.textPlaceholder}
                     value={formData.ubicacion}
                     onChangeText={(value) => handleChange("ubicacion", value)}
                     editable={!loading}

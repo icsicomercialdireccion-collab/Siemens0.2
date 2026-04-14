@@ -8,6 +8,7 @@ export const homeStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+    paddingBottom: "25%",
   },
   scrollContent: {
     paddingBottom: 32,

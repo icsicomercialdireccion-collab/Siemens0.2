@@ -650,18 +650,8 @@ export default function PcForm() {
                 style={StyleSheet.absoluteFillObject}
                 facing="back"
                 barcodeScannerSettings={{
-                  barcodeTypes: [
-                    "qr",
-                    "ean13",
-                    "ean8",
-                    "upc_a",
-                    "upc_e",
-                    "code39",
-                    "code93",
-                    "code128",
-                    "codabar",
-                    "itf14",
-                  ],
+                  barcodeTypes: ["ean13", "ean8", "code39", "code128"],
+                  interval: 1000,
                 }}
                 onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
               >

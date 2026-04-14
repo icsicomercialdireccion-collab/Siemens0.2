@@ -286,7 +286,7 @@ export default function DetailsScreen() {
                 <View style={detailStyle.infoItem}>
                   <Ionicons name="location-outline" size={18} color="#FFD6D6" />
                   <View style={detailStyle.infoContent}>
-                    <Text style={detailStyle.infoLabel}>Ubicación</Text>
+                    <Text style={detailStyle.infoLabel}>Localidad</Text>
                     <Text style={detailStyle.infoValue}>
                       {inventory.localidad || "No especificada"}
                     </Text>
@@ -302,7 +302,7 @@ export default function DetailsScreen() {
                   <View style={detailStyle.infoContent}>
                     <Text style={detailStyle.infoLabel}>Estado</Text>
                     <Text style={detailStyle.infoValue}>
-                      {inventory.localidad}
+                      {inventory.estado}
                     </Text>
                   </View>
                 </View>

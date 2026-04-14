@@ -1,13 +1,13 @@
 import { Dimensions, StyleSheet } from "react-native";
 import { COLORS } from "../../constants/colors";
 
-
 const { height } = Dimensions.get("window");
 
 export const authStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+    paddingBottom: "30%",
   },
   keyboardView: {
     flex: 1,
@@ -91,6 +91,6 @@ export const authStyles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: "600",
     width: 300,
-    textAlign: 'center'
+    textAlign: "center",
   },
 });
