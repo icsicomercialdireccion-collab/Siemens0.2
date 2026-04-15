@@ -1,9 +1,9 @@
-// app/components/EquipmentList.jsx
+// app/components/EquipmentList.jsx - VERSIÓN CON MODAL
+
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   Text,
@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { ListStyle } from "../../assets/styles/list.style";
 import { COLORS } from "../../constants/colors";
+import DeleteConfirmationModal from "./DeleteConfirmationModal";
 
 export default function EquipmentList({
   equipments,
@@ -21,6 +22,41 @@ export default function EquipmentList({
   onPressEquipment,
   onDeleteEquipment,
 }) {
+  // 👈 Estado para el modal de eliminación
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [selectedEquipment, setSelectedEquipment] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // 👈 Función para abrir el modal de eliminación
+  const openDeleteModal = (equipment) => {
+    setSelectedEquipment(equipment);
+    setDeleteModalVisible(true);
+  };
+
+  // 👈 Función para cerrar el modal
+  const closeDeleteModal = () => {
+    setDeleteModalVisible(false);
+    setSelectedEquipment(null);
+  };
+
+  // 👈 Función para confirmar la eliminación
+  const confirmDelete = async () => {
+    if (!selectedEquipment) return;
+
+    setIsDeleting(true);
+
+    try {
+      if (onDeleteEquipment) {
+        await onDeleteEquipment(inventoryId, selectedEquipment.id);
+      }
+      closeDeleteModal();
+    } catch (error) {
+      console.error("Error al eliminar:", error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // Función para renderizar cada equipo
   const renderEquipmentItem = ({ item }) => (
     <TouchableOpacity
@@ -32,7 +68,6 @@ export default function EquipmentList({
         });
 
         if (onPressEquipment) {
-          // PASA AMBOS PARÁMETROS
           onPressEquipment(item, inventoryId);
         }
       }}
@@ -105,7 +140,7 @@ export default function EquipmentList({
         <View style={ListStyle.actionsContainer}>
           <TouchableOpacity
             style={[ListStyle.actionButton, ListStyle.deleteButton]}
-            onPress={() => handleDeleteEquipment(item)}
+            onPress={() => openDeleteModal(item)} // 👈 MODIFICADO
           >
             <Ionicons name="trash-outline" size={18} color={COLORS.error} />
           </TouchableOpacity>
@@ -113,26 +148,6 @@ export default function EquipmentList({
       </View>
     </TouchableOpacity>
   );
-
-  // Función para manejar la eliminación
-  const handleDeleteEquipment = (equipment) => {
-    Alert.alert(
-      "Eliminar equipo",
-      `¿Estás seguro de eliminar el equipo ${equipment.serial}?`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Eliminar",
-          style: "destructive",
-          onPress: () => {
-            if (onDeleteEquipment) {
-              onDeleteEquipment(inventoryId, equipment.id);
-            }
-          },
-        },
-      ],
-    );
-  };
 
   // Función para renderizar el separador
   const renderSeparator = () => <View style={ListStyle.separator} />;
@@ -159,22 +174,33 @@ export default function EquipmentList({
   );
 
   return (
-    <FlatList
-      data={equipments}
-      renderItem={renderEquipmentItem}
-      keyExtractor={(item) => item.id}
-      ItemSeparatorComponent={renderSeparator}
-      ListFooterComponent={renderFooter}
-      ListEmptyComponent={renderEmptyList}
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={ListStyle.listContainer}
-      refreshing={loading}
-      onRefresh={onRefresh}
-    />
+    <>
+      <FlatList
+        data={equipments}
+        renderItem={renderEquipmentItem}
+        keyExtractor={(item) => item.id}
+        ItemSeparatorComponent={renderSeparator}
+        ListFooterComponent={renderFooter}
+        ListEmptyComponent={renderEmptyList}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={ListStyle.listContainer}
+        refreshing={loading}
+        onRefresh={onRefresh}
+      />
+
+      {/* 👈 MODAL DE CONFIRMACIÓN DE ELIMINACIÓN */}
+      <DeleteConfirmationModal
+        visible={deleteModalVisible}
+        equipmentSerial={selectedEquipment?.serial || ""}
+        onConfirm={confirmDelete}
+        onCancel={closeDeleteModal}
+        loading={isDeleting}
+      />
+    </>
   );
 }
 
-// Funciones auxiliares
+// Funciones auxiliares (sin cambios)
 const getStatusColor = (status) => {
   switch (status) {
     case "nuevo":
@@ -211,20 +237,13 @@ const formatDate = (dateInput) => {
   try {
     let date;
 
-    // Si es Firebase Timestamp
     if (dateInput.toDate && typeof dateInput.toDate === "function") {
       date = dateInput.toDate();
-    }
-    // Si ya es Date
-    else if (dateInput instanceof Date) {
+    } else if (dateInput instanceof Date) {
       date = dateInput;
-    }
-    // Si es string
-    else if (typeof dateInput === "string") {
+    } else if (typeof dateInput === "string") {
       date = new Date(dateInput);
-    }
-    // Si es número (timestamp)
-    else if (typeof dateInput === "number") {
+    } else if (typeof dateInput === "number") {
       date = new Date(dateInput);
     } else {
       return "Fecha inválida";

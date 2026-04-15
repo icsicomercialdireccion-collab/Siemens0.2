@@ -1,11 +1,11 @@
-// app/(auth)/login.jsx - VERSIÓN LIMPIA
+// app/(auth)/login.jsx - VERSIÓN CORREGIDA
+
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { authStyles } from "../../assets/styles/auth.styles";
 import { COLORS } from "../../constants/colors";
+import ErrorModal from "../components/ErrorModal";
 import { useAuth } from "../contexts/AutContext";
 
 const SignInScreen = () => {
@@ -28,6 +29,12 @@ const SignInScreen = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
 
+  // Estados para el modal de error
+  const [errorModalVisible, setErrorModalVisible] = useState(false);
+  const [errorTitle, setErrorTitle] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [showRetry, setShowRetry] = useState(false);
+
   useEffect(() => {
     console.log("🔍 [LOGIN] useEffect - user:", user?.email);
     console.log("🔍 [LOGIN] useEffect - userData:", userData?.role);
@@ -39,7 +46,6 @@ const SignInScreen = () => {
       );
       setRedirecting(true);
 
-      // Pequeño delay para asegurar que la navegación funciona en APK
       setTimeout(() => {
         if (userData.role === "admin") {
           console.log("🚀 Redirigiendo a admin home");
@@ -52,9 +58,24 @@ const SignInScreen = () => {
     }
   }, [user, userData, router, redirecting]);
 
+  const showErrorModal = (title, message, retry = false) => {
+    setErrorTitle(title);
+    setErrorMessage(message);
+    setShowRetry(retry);
+    setErrorModalVisible(true);
+  };
+
+  const closeErrorModal = () => {
+    setErrorModalVisible(false);
+    setShowRetry(false);
+  };
+
   const handleSignIn = async () => {
     if (!email || !password) {
-      Alert.alert("Error", "Por favor ingresa email y contraseña");
+      showErrorModal(
+        "Campos incompletos",
+        "Por favor ingresa tu correo electrónico y contraseña para continuar.",
+      );
       return;
     }
 
@@ -64,14 +85,68 @@ const SignInScreen = () => {
       const result = await login(email, password);
 
       if (result.success) {
-        // ✅ Login exitoso
-        // NO redirigir aquí - index.jsx lo hará automáticamente
-        Alert.alert("Éxito", "Inicio de sesión exitoso");
+        console.log("✅ Login exitoso");
       } else {
-        Alert.alert("Error", result.error || "Error al iniciar sesión");
+        // 👈 MANEJO DEL NUEVO ERROR auth/invalid-credential
+        let title = "Error de autenticación";
+        let message = "";
+        let retry = true;
+
+        console.log("🔍 Código de error:", result.code);
+
+        switch (result.code) {
+          case "auth/invalid-email":
+            title = "Correo inválido";
+            message =
+              "El formato del correo electrónico no es válido. Por favor verifica e intenta nuevamente.";
+            retry = false;
+            break;
+
+          case "auth/invalid-credential":
+            // 👈 Firebase unificó los errores de credenciales en este código
+            title = "Credenciales incorrectas";
+            message =
+              "El correo electrónico o la contraseña son incorrectos. Por favor verifica tus datos e intenta nuevamente.";
+            retry = true;
+            break;
+
+          case "auth/too-many-requests":
+            title = "Demasiados intentos";
+            message =
+              "Se han realizado demasiados intentos fallidos. Por favor espera unos minutos antes de volver a intentar.";
+            retry = false;
+            break;
+
+          case "auth/network-request-failed":
+            title = "Error de conexión";
+            message =
+              "No se pudo conectar con el servidor. Verifica tu conexión a internet e intenta nuevamente.";
+            retry = true;
+            break;
+
+          case "auth/user-disabled":
+            title = "Cuenta deshabilitada";
+            message =
+              "Esta cuenta ha sido deshabilitada. Contacta al administrador para más información.";
+            retry = false;
+            break;
+
+          default:
+            message =
+              result.error ||
+              "Error al iniciar sesión. Por favor intenta nuevamente.";
+            retry = true;
+        }
+
+        showErrorModal(title, message, retry);
       }
     } catch (error) {
-      Alert.alert("Error", "Error inesperado: " + error.message);
+      console.error("Error inesperado:", error);
+      showErrorModal(
+        "Error inesperado",
+        "Ocurrió un error inesperado. Por favor intenta nuevamente más tarde.",
+        true,
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -79,7 +154,6 @@ const SignInScreen = () => {
 
   const isLoading = authLoading || isSubmitting;
 
-  // 👈 Mostrar loading mientras redirige
   if (redirecting) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -185,6 +259,15 @@ const SignInScreen = () => {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <ErrorModal
+        visible={errorModalVisible}
+        title={errorTitle}
+        message={errorMessage}
+        onClose={closeErrorModal}
+        onRetry={handleSignIn}
+        showRetry={showRetry}
+      />
     </View>
   );
 };

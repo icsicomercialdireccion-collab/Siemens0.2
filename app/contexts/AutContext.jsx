@@ -235,24 +235,22 @@ export const AuthProvider = ({ children }) => {
         role: loadedUserData?.role,
       };
     } catch (error) {
-      console.error("❌ [AUTH] Error en login:", error);
-
       let errorMessage = "Error al iniciar sesión";
+      let errorCode = error.code;
+
       switch (error.code) {
         case "auth/invalid-email":
-          errorMessage = "Email inválido";
+          errorMessage = "El formato del correo electrónico no es válido";
+          break;
+        case "auth/invalid-credential":
+          // 👈 Este es el nuevo error unificado
+          errorMessage = "Correo electrónico o contraseña incorrectos";
           break;
         case "auth/user-disabled":
           errorMessage = "Esta cuenta ha sido deshabilitada";
           break;
-        case "auth/user-not-found":
-          errorMessage = "Usuario no encontrado";
-          break;
-        case "auth/wrong-password":
-          errorMessage = "Contraseña incorrecta";
-          break;
         case "auth/too-many-requests":
-          errorMessage = "Demasiados intentos. Intenta más tarde";
+          errorMessage = "Demasiados intentos fallidos. Intenta más tarde";
           break;
         case "auth/network-request-failed":
           errorMessage = "Error de conexión. Verifica tu internet";
