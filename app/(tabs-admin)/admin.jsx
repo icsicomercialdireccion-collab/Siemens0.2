@@ -108,10 +108,10 @@ const AdminScreen = () => {
   };
 
   return (
-    <View style={homeStyles.container}>
+    <View style={homeStyles.containerAdmin}>
       {/* HEADER CON REFRESH */}
 
-      <View>
+      <View style={homeStyles.titleContainer}>
         <Text style={authStyles.title}>GESTIÓN DE INVENTARIOS</Text>
       </View>
 

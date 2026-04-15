@@ -4,15 +4,15 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   ScrollView,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { profileStyle } from "../../assets/styles/profileScreen.style";
 import { COLORS } from "../../constants/colors";
+import LogoutModal from "../components/LogoutModal";
 import { useAuth } from "../contexts/AutContext";
 
 export default function PerfilAdminScreen() {
@@ -26,13 +26,16 @@ export default function PerfilAdminScreen() {
   const [loading, setLoading] = useState(false);
   const [userData, setUserData] = useState(null);
 
+  // 👈 Estado para el modal de logout
+  const [logoutModalVisible, setLogoutModalVisible] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
   useEffect(() => {
     if (user && authUserData) {
-      // 👈 USAR LOS DATOS REALES DEL CONTEXTO
       setUserData({
         name: authUserData.displayName || user.displayName || "Usuario",
         email: user.email || "No especificado",
-        role: authUserData.role === "admin" ? "Administrador" : "Usuario", // 👈 ROL REAL
+        role: authUserData.role === "admin" ? "Administrador" : "Usuario",
         avatarUrl: user.photoURL,
         joinDate:
           authUserData.createdAt ||
@@ -42,50 +45,58 @@ export default function PerfilAdminScreen() {
         uid: user.uid,
       });
     } else if (user) {
-      // Fallback si no hay userData en el contexto
       console.log("⚠️ No hay userData en el contexto, usando datos básicos");
       setUserData({
         name: user.displayName || "Usuario",
         email: user.email || "No especificado",
-        role: "Usuario", // 👈 DEFAULT
+        role: "Usuario",
         avatarUrl: user.photoURL,
         joinDate: user.metadata?.creationTime || new Date().toISOString(),
         lastLogin: user.metadata?.lastSignInTime || new Date().toISOString(),
         uid: user.uid,
       });
     }
-  }, [user, authUserData]); // 👈 DEPENDER DE authUserData
+  }, [user, authUserData]);
 
-  // 👈 FUNCIÓN PARA MOSTRAR EL ROL EN ESPAÑOL
   const getRoleLabel = (role) => {
     if (role === "admin") return "Administrador";
     if (role === "user") return "Usuario";
     return role || "Usuario";
   };
 
-  const handleLogout = async () => {
-    Alert.alert(
-      "Cerrar sesión",
-      "¿Estás seguro de que quieres cerrar sesión?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Cerrar sesión",
-          style: "destructive",
-          onPress: async () => {
-            setLoading(true);
-            const result = await logout();
-            setLoading(false);
+  // 👈 Función para abrir el modal de logout
+  const handleOpenLogoutModal = () => {
+    setLogoutModalVisible(true);
+  };
 
-            if (result.success) {
-              router.replace("/(auth)/login");
-            } else {
-              Alert.alert("Error", result.error || "No se pudo cerrar sesión");
-            }
-          },
-        },
-      ],
-    );
+  // 👈 Función para cerrar el modal de logout
+  const handleCloseLogoutModal = () => {
+    setLogoutModalVisible(false);
+  };
+
+  // 👈 Función para confirmar el logout
+  const handleConfirmLogout = async () => {
+    setIsLoggingOut(true);
+
+    try {
+      const result = await logout();
+
+      if (result.success) {
+        // Cerrar modal y redirigir
+        setLogoutModalVisible(false);
+        router.replace("/(auth)/login");
+      } else {
+        // Mostrar error (puedes usar otro modal o alert)
+        console.error("Error al cerrar sesión:", result.error);
+        setLogoutModalVisible(false);
+        // Opcional: mostrar modal de error
+      }
+    } catch (error) {
+      console.error("Error inesperado:", error);
+      setLogoutModalVisible(false);
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   const handleEditProfile = () => {
@@ -153,17 +164,9 @@ export default function PerfilAdminScreen() {
               <Ionicons name="person" size={60} color="#fff" />
             </View>
           )}
-          <TouchableOpacity
-            style={profileStyle.editAvatarButton}
-            onPress={handleEditProfile}
-          >
-            <Ionicons name="camera" size={16} color="#fff" />
-          </TouchableOpacity>
         </View>
 
-        <Text numberOfLines={1} style={profileStyle.userName}>
-          {userData.name}
-        </Text>
+        <Text style={profileStyle.userName}>{userData.name}</Text>
         <Text style={profileStyle.userEmail}>{userData.email}</Text>
 
         <View style={profileStyle.roleBadge}>
@@ -299,13 +302,13 @@ export default function PerfilAdminScreen() {
         </View>
       </View>
 
-      {/* Botón de cerrar sesión */}
+      {/* 👈 Botón de cerrar sesión MODIFICADO */}
       <TouchableOpacity
         style={profileStyle.logoutButton}
-        onPress={handleLogout}
-        disabled={loading}
+        onPress={handleOpenLogoutModal}
+        disabled={isLoggingOut}
       >
-        {loading ? (
+        {isLoggingOut ? (
           <ActivityIndicator color="#fff" size="small" />
         ) : (
           <>
@@ -317,6 +320,14 @@ export default function PerfilAdminScreen() {
 
       {/* Versión de la app */}
       <Text style={profileStyle.versionText}>v1.0.0</Text>
+
+      {/* 👈 MODAL DE LOGOUT */}
+      <LogoutModal
+        visible={logoutModalVisible}
+        onConfirm={handleConfirmLogout}
+        onCancel={handleCloseLogoutModal}
+        loading={isLoggingOut}
+      />
     </ScrollView>
   );
 }
