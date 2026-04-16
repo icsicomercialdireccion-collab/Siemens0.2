@@ -307,6 +307,17 @@ export const detailStyle = StyleSheet.create({
     width: "100%",
     alignItems: "center",
     marginTop: 12,
+    display: "flex",
+    flexDirection: "row",
+    gap: 5,
+    justifyContent: "center",
+  },
+  modalButtonShare: {
+    backgroundColor: "#2196F3", // Azul para compartir
+    display: "flex",
+    flexDirection: "row",
+    gap: 5,
+    justifyContent: "center",
   },
   modalButtonText: {
     // ESTE YA LO TIENES
@@ -319,6 +330,12 @@ export const detailStyle = StyleSheet.create({
     backgroundColor: "transparent",
     borderWidth: 1,
     borderColor: COLORS.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
+    width: "100%",
+    alignItems: "center",
+    marginTop: 12,
   },
   modalButtonTextSecondary: {
     // ESTE YA LO TIENES
