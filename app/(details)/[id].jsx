@@ -396,28 +396,58 @@ export default function DetailsScreen() {
           tempDir.create();
         }
 
-        // 2. Definir el archivo de destino
-        const tempFile = new File(tempDir, "inventario_compartir.xlsx");
+        // 2. Generar nombre de archivo con la información del inventario
+        const mes = inventory?.mes || "inventario";
+        const estado = inventory?.estado || "ubicacion";
+        const localidad = inventory?.localidad || "localidad";
+        const fecha = new Date()
+          .toLocaleDateString("es-ES", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          })
+          .replace(/\//g, "-");
 
-        // 3. Descargar el archivo usando el nuevo método estático
+        // Formato: "Enero_Jalisco_Guadalajara_15-04-2026.xlsx"
+        let nombreArchivo = `${mes}_${estado}_${localidad}_${fecha}.xlsx`;
+
+        // Limpiar caracteres especiales (tildes, ñ, etc.)
+        nombreArchivo = nombreArchivo
+          .replace(/[ñÑ]/g, (match) => (match === "ñ" ? "n" : "N"))
+          .replace(/[áéíóú]/g, (match) => {
+            const vocales = { á: "a", é: "e", í: "i", ó: "o", ú: "u" };
+            return vocales[match];
+          })
+          .replace(/[ÁÉÍÓÚ]/g, (match) => {
+            const vocales = { Á: "A", É: "E", Í: "I", Ó: "O", Ú: "U" };
+            return vocales[match];
+          })
+          .replace(/[^a-zA-Z0-9_.-]/g, "_");
+
+        console.log("📝 Nombre del archivo para compartir:", nombreArchivo);
+
+        // 3. Definir el archivo de destino
+        const tempFile = new File(tempDir, nombreArchivo);
+
+        // 4. Descargar el archivo
         const downloadedFile = await File.downloadFileAsync(
           lastExportUrl,
           tempFile,
           {
-            idempotent: true, // Sobrescribe si ya existe
+            idempotent: true,
           },
         );
 
         console.log("📁 Archivo descargado en:", downloadedFile.uri);
 
-        // 4. Compartir el archivo local
+        // 5. Compartir el archivo
         await Sharing.shareAsync(downloadedFile.uri, {
-          dialogTitle: "Compartir inventario",
+          dialogTitle: `Compartir inventario ${mes}`,
           mimeType:
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         });
 
-        // 5. Limpiar archivo temporal (opcional)
+        // 6. Limpiar archivo temporal
         await tempFile.delete();
       } catch (error) {
         console.error("Error al compartir:", error);
