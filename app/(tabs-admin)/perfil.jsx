@@ -171,7 +171,12 @@ export default function PerfilAdminScreen() {
         <Text style={profileStyle.userEmail}>{userData.email}</Text>
 
         <View style={profileStyle.roleBadge}>
-          <Ionicons name="shield-checkmark" size={16} color="#fff" />
+          <Ionicons
+            style={profileStyle.IconRole}
+            name="shield-checkmark"
+            size={16}
+            color="#fff"
+          />
           <Text style={profileStyle.roleText}>
             {getRoleLabel(authUserData?.role)}
           </Text>
@@ -320,7 +325,7 @@ export default function PerfilAdminScreen() {
       </TouchableOpacity>
 
       {/* Versión de la app */}
-      <Text style={profileStyle.versionText}>v1.0.0</Text>
+      <Text style={profileStyle.versionText}>v1.1.1</Text>
 
       {/* 👈 MODAL DE LOGOUT */}
       <LogoutModal

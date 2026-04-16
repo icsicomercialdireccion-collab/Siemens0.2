@@ -8,7 +8,7 @@ import {
   ScrollView,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { profileStyle } from "../../assets/styles/profileScreen.style";
 import { COLORS } from "../../constants/colors";
@@ -319,7 +319,7 @@ export default function PerfilAdminScreen() {
       </TouchableOpacity>
 
       {/* Versión de la app */}
-      <Text style={profileStyle.versionText}>v1.0.0</Text>
+      <Text style={profileStyle.versionText}>v1.1.1</Text>
 
       {/* 👈 MODAL DE LOGOUT */}
       <LogoutModal

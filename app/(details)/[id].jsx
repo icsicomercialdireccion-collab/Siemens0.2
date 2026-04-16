@@ -24,6 +24,11 @@ import { detailStyle } from "../../assets/styles/details.style";
 import { COLORS } from "../../constants/colors";
 import EquipmentList from "../components/EquipmentList";
 
+// app/(details)/[id].jsx - AGREGAR ESTA IMPORTACIÓN
+import * as Sharing from "expo-sharing";
+
+import { Directory, File, Paths } from "expo-file-system";
+
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function DetailsScreen() {
@@ -371,70 +376,147 @@ export default function DetailsScreen() {
   );
 
   // ================== MODAL DE EXPORTACIÓN ==================
-  const ExportModal = () => (
-    <Modal
-      transparent={true}
-      visible={showExportModal}
-      animationType="fade"
-      onRequestClose={() => !exporting && setShowExportModal(false)}
-    >
-      <View style={detailStyle.modalOverlay}>
-        <View style={detailStyle.modalContainer}>
-          <Text style={detailStyle.modalTitle}>
-            {exporting ? "Exportando Inventario" : "Exportación Completada"}
-          </Text>
 
-          {exporting ? (
-            <>
-              <ActivityIndicator size="large" color={COLORS.primary} />
-              <Text style={detailStyle.modalText}>
-                Procesando {equipments.length} equipos...
-              </Text>
-              <View style={detailStyle.progressBar}>
-                <View
+  const ExportModal = () => {
+    const [isSharing, setIsSharing] = useState(false);
+
+    // Función para descargar y compartir usando la NUEVA API
+    const handleShare = async () => {
+      if (!lastExportUrl) {
+        Alert.alert("Error", "No hay archivo para compartir");
+        return;
+      }
+
+      setIsSharing(true);
+
+      try {
+        // 1. Crear el directorio temporal si no existe
+        const tempDir = new Directory(Paths.cache, "temp");
+        if (!tempDir.exists) {
+          tempDir.create();
+        }
+
+        // 2. Definir el archivo de destino
+        const tempFile = new File(tempDir, "inventario_compartir.xlsx");
+
+        // 3. Descargar el archivo usando el nuevo método estático
+        const downloadedFile = await File.downloadFileAsync(
+          lastExportUrl,
+          tempFile,
+          {
+            idempotent: true, // Sobrescribe si ya existe
+          },
+        );
+
+        console.log("📁 Archivo descargado en:", downloadedFile.uri);
+
+        // 4. Compartir el archivo local
+        await Sharing.shareAsync(downloadedFile.uri, {
+          dialogTitle: "Compartir inventario",
+          mimeType:
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+
+        // 5. Limpiar archivo temporal (opcional)
+        await tempFile.delete();
+      } catch (error) {
+        console.error("Error al compartir:", error);
+        Alert.alert(
+          "Error",
+          "No se pudo compartir el archivo: " + error.message,
+        );
+      } finally {
+        setIsSharing(false);
+      }
+    };
+
+    return (
+      <Modal
+        transparent={true}
+        visible={showExportModal}
+        animationType="fade"
+        onRequestClose={() => !exporting && setShowExportModal(false)}
+      >
+        <View style={detailStyle.modalOverlay}>
+          <View style={detailStyle.modalContainer}>
+            <Text style={detailStyle.modalTitle}>
+              {exporting ? "Exportando Inventario" : "Exportación Completada"}
+            </Text>
+
+            {exporting ? (
+              <>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+                <Text style={detailStyle.modalText}>
+                  Procesando {equipments.length} equipos...
+                </Text>
+                <View style={detailStyle.progressBar}>
+                  <View
+                    style={[
+                      detailStyle.progressFill,
+                      { width: `${exportProgress}%` },
+                    ]}
+                  />
+                </View>
+                <Text style={detailStyle.progressText}>{exportProgress}%</Text>
+              </>
+            ) : (
+              <>
+                <Ionicons name="checkmark-circle" size={60} color="#4CAF50" />
+                <Text style={detailStyle.modalText}>
+                  ¡Inventario exportado exitosamente!
+                </Text>
+
+                {/* Botón Descargar */}
+                <TouchableOpacity
+                  style={detailStyle.modalButton}
+                  onPress={() => {
+                    if (lastExportUrl) {
+                      Linking.openURL(lastExportUrl);
+                    }
+                    setShowExportModal(false);
+                  }}
+                >
+                  <Ionicons name="download-outline" size={20} color="#fff" />
+                  <Text style={detailStyle.modalButtonText}>
+                    Descargar Excel
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Botón Compartir */}
+                <TouchableOpacity
                   style={[
-                    detailStyle.progressFill,
-                    { width: `${exportProgress}%` },
+                    detailStyle.modalButton,
+                    { marginTop: 10, backgroundColor: "#2196F3" },
                   ]}
-                />
-              </View>
-              <Text style={detailStyle.progressText}>{exportProgress}%</Text>
-            </>
-          ) : (
-            <>
-              <Ionicons name="checkmark-circle" size={60} color="#4CAF50" />
-              <Text style={detailStyle.modalText}>
-                ¡Inventario exportado exitosamente!
-              </Text>
-              <TouchableOpacity
-                style={detailStyle.modalButton}
-                onPress={() => {
-                  if (lastExportUrl) {
-                    Linking.openURL(lastExportUrl);
-                  }
-                  setShowExportModal(false);
-                }}
-              >
-                <Text style={detailStyle.modalButtonText}>Descargar Excel</Text>
-              </TouchableOpacity>
-            </>
-          )}
+                  onPress={handleShare}
+                  disabled={isSharing}
+                >
+                  {isSharing ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="share-outline" size={20} color="#fff" />
+                      <Text style={detailStyle.modalButtonText}>Compartir</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
 
-          {!exporting && (
-            <TouchableOpacity
-              style={[
-                detailStyle.modalButton,
-                detailStyle.modalButtonSecondary,
-              ]}
-              onPress={() => setShowExportModal(false)}
-            >
-              <Text style={detailStyle.modalButtonTextSecondary}>Cerrar</Text>
-            </TouchableOpacity>
-          )}
+                {/* Botón Cerrar */}
+                <TouchableOpacity
+                  style={[detailStyle.modalButtonSecondary, { marginTop: 10 }]}
+                  onPress={() => setShowExportModal(false)}
+                >
+                  <Text style={detailStyle.modalButtonTextSecondary}>
+                    Cerrar
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
         </View>
-      </View>
-    </Modal>
-  );
+      </Modal>
+    );
+  };
 
   // ================== RENDER LOADING ==================
   if (loading && !refreshing) {

@@ -43,7 +43,7 @@ export const profileStyle = StyleSheet.create({
   header: {
     alignItems: "center",
     padding: 30,
-    backgroundColor: "#fff",
+    backgroundColor: "#7F8C8D",
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
     marginBottom: 20,
@@ -77,14 +77,14 @@ export const profileStyle = StyleSheet.create({
   userName: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#333",
+    color: "#ffffff",
     marginBottom: 5,
     flex: 1,
   },
   userEmail: {
     fontSize: 16,
-    color: "#666",
     marginBottom: 15,
+    color: "#fff",
   },
   roleBadge: {
     flexDirection: "row",
@@ -93,13 +93,21 @@ export const profileStyle = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 6,
     borderRadius: 20,
-    gap: 6,
+    gap: 5,
+    display: "flex",
+    width: "50%",
+    alignSelf: "center",
+    justifyContent: "center",
+  },
+  IconRole: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   roleText: {
     color: "#fff",
     fontWeight: "600",
     fontSize: 14,
-    width: 100,
+    textAlign: "center",
   },
   infoSection: {
     paddingHorizontal: 20,
