@@ -81,8 +81,6 @@ export default function EditEquipmentScreen() {
     if (!saveImageLocally) return { success: false, skipped: true };
 
     try {
-      console.log("💾 Guardando imagen localmente para serial:", serial);
-
       const fileName = `equipo_${serial}_${Date.now()}.jpg`;
       const result = await LocalStorageService.saveImageToGallery(
         imageUri,
@@ -91,10 +89,8 @@ export default function EditEquipmentScreen() {
 
       if (result.success) {
         setImageSavedLocally(true);
-        console.log("✅ Imagen guardada localmente:", result.uri);
         return result;
       } else {
-        console.log("⚠️ No se pudo guardar imagen localmente:", result.error);
         return result;
       }
     } catch (error) {
@@ -112,12 +108,9 @@ export default function EditEquipmentScreen() {
         multiple: false,
       });
 
-      console.log("Resultado DocumentPicker:", result);
-
       // ✅ CORRECTO: Usar "canceled" en lugar de "type"
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const selectedImage = result.assets[0];
-        console.log("✅ Imagen seleccionada:", selectedImage.name);
 
         setImage(selectedImage.uri);
         setFormData((prev) => ({ ...prev, imagenUrl: selectedImage.uri }));
@@ -128,7 +121,6 @@ export default function EditEquipmentScreen() {
           [{ text: "OK" }],
         );
       } else {
-        console.log("Usuario canceló la selección");
       }
     } catch (error) {
       console.error("❌ Error seleccionando imagen:", error);
@@ -214,10 +206,6 @@ export default function EditEquipmentScreen() {
 
     try {
       setUploading(true);
-      console.log("Subiendo imagen...", {
-        inventoryId,
-        serial: formData.serial,
-      });
 
       const result = await uploadImageToStorage(
         image,
@@ -225,7 +213,6 @@ export default function EditEquipmentScreen() {
         formData.serial || "equipo",
       );
 
-      console.log("✅ Imagen subida:", result.url);
       return result.url;
     } catch (error) {
       console.error("Error subiendo imagen:", error);
@@ -256,16 +243,11 @@ export default function EditEquipmentScreen() {
     try {
       // 1. Si hay nueva imagen y está activado el guardado local, guardar primero
       if (image && image !== formData.currentImageUrl && saveImageLocally) {
-        console.log("💾 Guardando imagen localmente antes de actualizar...");
         const saveResult = await saveImageToDevice(image, serial);
 
         if (saveResult.success) {
           localImageUri = saveResult.uri;
-          console.log("✅ Imagen guardada localmente en:", localImageUri);
         } else if (!saveResult.skipped) {
-          console.log(
-            "⚠️ No se pudo guardar imagen localmente, continuando...",
-          );
           if (saveResult.error?.includes("Permiso")) {
             Alert.alert(
               "Permiso denegado",
@@ -421,8 +403,6 @@ export default function EditEquipmentScreen() {
         Alert.alert("Sin cambios", "No se detectaron cambios para actualizar");
         return;
       }
-
-      console.log("Actualizando equipo con:", updateData);
 
       // Ejecutar actualización
       const result = await updateEquipment(

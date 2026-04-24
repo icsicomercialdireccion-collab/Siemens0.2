@@ -62,11 +62,6 @@ export default function EquipmentList({
     <TouchableOpacity
       style={ListStyle.equipmentCard}
       onPress={() => {
-        console.log("📱 Presionando equipo:", {
-          equipmentId: item.id,
-          inventoryId: inventoryId,
-        });
-
         if (onPressEquipment) {
           onPressEquipment(item, inventoryId);
         }

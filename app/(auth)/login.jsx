@@ -36,22 +36,13 @@ const SignInScreen = () => {
   const [showRetry, setShowRetry] = useState(false);
 
   useEffect(() => {
-    console.log("🔍 [LOGIN] useEffect - user:", user?.email);
-    console.log("🔍 [LOGIN] useEffect - userData:", userData?.role);
-
     if (user && userData && !redirecting) {
-      console.log(
-        "✅ Usuario autenticado, redirigiendo según rol:",
-        userData.role,
-      );
       setRedirecting(true);
 
       setTimeout(() => {
         if (userData.role === "admin") {
-          console.log("🚀 Redirigiendo a admin home");
           router.replace("/(tabs-admin)/home");
         } else {
-          console.log("🚀 Redirigiendo a user home");
           router.replace("/(tabs)/home");
         }
       }, 500);
@@ -85,14 +76,11 @@ const SignInScreen = () => {
       const result = await login(email, password);
 
       if (result.success) {
-        console.log("✅ Login exitoso");
       } else {
         // 👈 MANEJO DEL NUEVO ERROR auth/invalid-credential
         let title = "Error de autenticación";
         let message = "";
         let retry = true;
-
-        console.log("🔍 Código de error:", result.code);
 
         switch (result.code) {
           case "auth/invalid-email":

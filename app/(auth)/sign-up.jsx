@@ -1,76 +1,77 @@
-import { Ionicons } from "@expo/vector-icons"
-import { Image } from "expo-image"
-import { useRouter } from "expo-router"
-import { useState } from "react"
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
-import { authStyles } from "../../assets/styles/auth.styles"
-import { COLORS } from '../../constants/colors'
+import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { useRouter } from "expo-router";
+import { useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { authStyles } from "../../assets/styles/auth.styles";
+import { COLORS } from "../../constants/colors";
 import { useAuth } from "../contexts/AutContext.jsx"; // Cambiamos a nuestro AuthContext
 
 const SignUpScreen = () => {
-  const router = useRouter()
-  
+  const router = useRouter();
+
   // Usamos nuestro AuthContext en lugar de Clerk
-  const { register, loading: authLoading } = useAuth()
-  
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("") // Agregamos confirmación
-  const [userName, setUserName] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { register, loading: authLoading } = useAuth();
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState(""); // Agregamos confirmación
+  const [userName, setUserName] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSignUp = async () => {
-  console.log("Iniciando registro...");
-  console.log("Email:", email);
-  console.log("🔑 Password:", password);
     // Validaciones
     if (!email || !password || !confirmPassword) {
-      Alert.alert("Error", "Por favor completa todos los campos")
-      return
+      Alert.alert("Error", "Por favor completa todos los campos");
+      return;
     }
 
     if (!validateEmail(email)) {
-      Alert.alert("Error", "Por favor ingresa un email válido")
-      return
+      Alert.alert("Error", "Por favor ingresa un email válido");
+      return;
     }
 
     if (password.length < 6) {
-      Alert.alert("Error", "La contraseña debe tener al menos 6 caracteres")
-      return
+      Alert.alert("Error", "La contraseña debe tener al menos 6 caracteres");
+      return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert("Error", "Las contraseñas no coinciden")
-      return
+      Alert.alert("Error", "Las contraseñas no coinciden");
+      return;
     }
 
-    setIsSubmitting(true)
+    setIsSubmitting(true);
 
     try {
       const result = await register(email, password, userName);
-      
-      console.log("✅ Resultado del registro:", result); // Agrega esto
-      
+
       if (result.success) {
         Alert.alert(
-          "¡Éxito!", 
+          "¡Éxito!",
           "Cuenta creada correctamente. Puedes iniciar sesión ahora.",
           [
-            { 
-              text: "OK", 
-              onPress: () => router.replace("/(auth)/login") 
-            }
-          ]
+            {
+              text: "OK",
+              onPress: () => router.replace("/(auth)/login"),
+            },
+          ],
         );
       } else {
         // Muestra el error específico
-        console.log(" Error del registro:", result.error, result.code);
-        Alert.alert(
-          "Error", 
-          result.error || "Error al crear la cuenta"
-        );
+        Alert.alert("Error", result.error || "Error al crear la cuenta");
       }
     } catch (error) {
       console.error(" Error catch:", error);
@@ -82,11 +83,11 @@ const SignUpScreen = () => {
 
   // Función para validar email
   const validateEmail = (email) => {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    return re.test(email)
-  }
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+  };
 
-  const isLoading = authLoading || isSubmitting
+  const isLoading = authLoading || isSubmitting;
 
   return (
     <View style={authStyles.container}>
@@ -100,17 +101,16 @@ const SignUpScreen = () => {
           showsVerticalScrollIndicator={false}
         >
           <View style={authStyles.imageContainer}>
-            <Image 
+            <Image
               source={require("../../assets/images/icsiLogo.png")}
               style={authStyles.image}
               contentFit="contain"
             />
           </View>
-          
-          <Text style={authStyles.title}>Crear Cuenta</Text>
-          
-          <View style={authStyles.formContainer}>
 
+          <Text style={authStyles.title}>Crear Cuenta</Text>
+
+          <View style={authStyles.formContainer}>
             {/* NOMBRE DE USUARIO (OPCIONAL) */}
             <View style={authStyles.inputContainer}>
               <TextInput
@@ -191,25 +191,34 @@ const SignUpScreen = () => {
             {/* INDICADOR DE FUERZA DE CONTRASEÑA (OPCIONAL) */}
             {password.length > 0 && (
               <View style={{ marginBottom: 15 }}>
-                <Text style={{ 
-                  fontSize: 12, 
-                  color: password.length >= 6 ? COLORS.success : COLORS.error,
-                  marginBottom: 5
-                }}>
-                  {password.length >= 6 ? '✓ Contraseña segura' : '⚠ Mínimo 6 caracteres'}
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: password.length >= 6 ? COLORS.success : COLORS.error,
+                    marginBottom: 5,
+                  }}
+                >
+                  {password.length >= 6
+                    ? "✓ Contraseña segura"
+                    : "⚠ Mínimo 6 caracteres"}
                 </Text>
-                <View style={{ 
-                  height: 4, 
-                  backgroundColor: COLORS.border,
-                  borderRadius: 2,
-                  overflow: 'hidden'
-                }}>
-                  <View style={{
-                    width: `${Math.min(password.length * 10, 100)}%`,
-                    height: '100%',
-                    backgroundColor: password.length >= 6 ? COLORS.success : COLORS.error,
-                    borderRadius: 2
-                  }} />
+                <View
+                  style={{
+                    height: 4,
+                    backgroundColor: COLORS.border,
+                    borderRadius: 2,
+                    overflow: "hidden",
+                  }}
+                >
+                  <View
+                    style={{
+                      width: `${Math.min(password.length * 10, 100)}%`,
+                      height: "100%",
+                      backgroundColor:
+                        password.length >= 6 ? COLORS.success : COLORS.error,
+                      borderRadius: 2,
+                    }}
+                  />
                 </View>
               </View>
             )}
@@ -217,9 +226,8 @@ const SignUpScreen = () => {
             {/* BOTÓN REGISTRARSE */}
             <TouchableOpacity
               style={[
-                authStyles.authButton, 
-                isLoading && authStyles.buttonDisabled
-                
+                authStyles.authButton,
+                isLoading && authStyles.buttonDisabled,
               ]}
               onPress={handleSignUp}
               disabled={isLoading}
@@ -233,36 +241,46 @@ const SignUpScreen = () => {
             </TouchableOpacity>
 
             {/* ENLACE PARA INICIAR SESIÓN */}
-            <TouchableOpacity 
-              style={authStyles.linkContainer} 
+            <TouchableOpacity
+              style={authStyles.linkContainer}
               onPress={() => router.back()}
               disabled={isLoading}
             >
               <Text style={authStyles.linkText}>
-                ¿Ya tienes cuenta? <Text style={authStyles.link}>Inicia Sesión</Text>
+                ¿Ya tienes cuenta?{" "}
+                <Text style={authStyles.link}>Inicia Sesión</Text>
               </Text>
             </TouchableOpacity>
 
             {/* TÉRMINOS Y CONDICIONES (OPCIONAL) */}
-            <View style={{ 
-              marginTop: 20, 
-              paddingHorizontal: 20 
-            }}>
-              <Text style={{ 
-                fontSize: 12, 
-                color: COLORS.textLight,
-                textAlign: 'center'
-              }}>
-                Al crear una cuenta, aceptas nuestros {' '}
-                <Text style={{ color: COLORS.primary }}>Términos de Servicio</Text>{' '}
-                y <Text style={{ color: COLORS.primary }}>Política de Privacidad</Text>
+            <View
+              style={{
+                marginTop: 20,
+                paddingHorizontal: 20,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: COLORS.textLight,
+                  textAlign: "center",
+                }}
+              >
+                Al crear una cuenta, aceptas nuestros{" "}
+                <Text style={{ color: COLORS.primary }}>
+                  Términos de Servicio
+                </Text>{" "}
+                y{" "}
+                <Text style={{ color: COLORS.primary }}>
+                  Política de Privacidad
+                </Text>
               </Text>
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
-  )
-}
+  );
+};
 
-export default SignUpScreen
+export default SignUpScreen;

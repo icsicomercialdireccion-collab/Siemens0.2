@@ -38,6 +38,7 @@ export default function DetailsScreen() {
     getEquipmentsByInventory,
     deleteEquipment,
     loading: equipmentsLoading,
+    clearEquipments,
   } = useEquipment();
 
   const router = useRouter();
@@ -56,6 +57,9 @@ export default function DetailsScreen() {
       loadInventory();
       getEquipmentsByInventory(id);
     }
+    return () => {
+      clearEquipments(); // Esta función debe existir en tu contexto
+    };
   }, [id]);
 
   const loadInventory = async () => {
@@ -424,8 +428,6 @@ export default function DetailsScreen() {
           })
           .replace(/[^a-zA-Z0-9_.-]/g, "_");
 
-        console.log("📝 Nombre del archivo para compartir:", nombreArchivo);
-
         // 3. Definir el archivo de destino
         const tempFile = new File(tempDir, nombreArchivo);
 
@@ -437,8 +439,6 @@ export default function DetailsScreen() {
             idempotent: true,
           },
         );
-
-        console.log("📁 Archivo descargado en:", downloadedFile.uri);
 
         // 5. Compartir el archivo
         await Sharing.shareAsync(downloadedFile.uri, {

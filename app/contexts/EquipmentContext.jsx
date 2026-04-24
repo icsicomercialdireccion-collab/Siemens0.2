@@ -30,8 +30,6 @@ export const EquipmentProvider = ({ children }) => {
   // 🔥 NUEVA FUNCIÓN: Verificar si el serial ya existe en el inventario
   const checkSerialExists = async (inventoryId, serial) => {
     try {
-      console.log("🔍 Verificando serial duplicado:", serial);
-
       const q = query(
         collection(db, "inventarios", inventoryId, "equipos"),
         where("serial", "==", serial.toUpperCase()),
@@ -39,12 +37,6 @@ export const EquipmentProvider = ({ children }) => {
 
       const snapshot = await getDocs(q);
       const exists = !snapshot.empty;
-
-      if (exists) {
-        console.log("⚠️ Serial ya existe:", serial);
-      } else {
-        console.log("✅ Serial disponible:", serial);
-      }
 
       return exists;
     } catch (error) {
@@ -57,7 +49,6 @@ export const EquipmentProvider = ({ children }) => {
   const getEquipmentsByInventory = async (inventoryId) => {
     try {
       setLoading(true);
-      console.log("📋 Obteniendo equipos para inventario:", inventoryId);
 
       // 👈 AGREGAR orderBy para ordenar por fecha de creación (más reciente primero)
       const q = query(
@@ -66,7 +57,6 @@ export const EquipmentProvider = ({ children }) => {
       );
 
       const querySnapshot = await getDocs(q);
-      console.log(`📊 ${querySnapshot.docs.length} equipos encontrados`);
 
       const equipmentsList = querySnapshot.docs.map((doc) => {
         const data = doc.data();
@@ -452,6 +442,10 @@ export const EquipmentProvider = ({ children }) => {
     }
   };
 
+  const clearEquipments = () => {
+    setEquipments([]);
+  };
+
   // VALOR DEL CONTEXTO
   const value = {
     loading,
@@ -465,7 +459,7 @@ export const EquipmentProvider = ({ children }) => {
     uploadImageToStorage,
     checkSerialExists, // 👈 EXPORTAR para uso externo
     refreshEquipments: (inventoryId) => getEquipmentsByInventory(inventoryId),
-    clearEquipments: () => setEquipments([]),
+    clearEquipments,
   };
 
   return (
