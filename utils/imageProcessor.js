@@ -18,10 +18,6 @@ export const processImageForUpload = async (uri) => {
       },
     );
 
-    console.log(
-      `📸 Imagen optimizada: de original a ${result.width}px. Nuevo URI: ${result.uri}`,
-    );
-
     return {
       uri: result.uri,
       width: result.width,

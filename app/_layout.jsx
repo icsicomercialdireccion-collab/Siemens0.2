@@ -88,7 +88,6 @@ function AuthHandler() {
   }
 
   // 4. Autenticado y con userData → Mostrar rutas según rol
-  console.log(`🎯 Rol detectado: ${userData.role}`);
 
   if (userData.role === "admin") {
     return (

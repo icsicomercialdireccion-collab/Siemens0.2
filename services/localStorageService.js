@@ -7,22 +7,17 @@ class LocalStorageService {
   // Solicitar permisos de galería
   static async requestPermissions() {
     try {
-      console.log("🔍 Solicitando permisos de galería...");
-
       // En Android 13+, verificar estado primero
       if (Platform.OS === "android" && Platform.Version >= 33) {
         const { status: currentStatus } =
           await MediaLibrary.getPermissionsAsync();
-        console.log("   Estado actual:", currentStatus);
 
         if (currentStatus === "granted") {
-          console.log("✅ Permisos ya concedidos");
           return true;
         }
 
         const { status, canAskAgain } =
           await MediaLibrary.requestPermissionsAsync();
-        console.log("   Resultado solicitud:", status);
 
         if (status !== "granted") {
           if (!canAskAgain) {
@@ -74,10 +69,6 @@ class LocalStorageService {
   // Guardar imagen en galería - VERSIÓN SIN FILESYSTEM
   static async saveImageToGallery(imageUri, fileName = null) {
     try {
-      console.log("=".repeat(50));
-      console.log("📸 Guardando imagen en galería");
-      console.log("   URI:", imageUri?.substring(0, 100));
-
       if (!imageUri) {
         throw new Error("No hay imagen para guardar");
       }
@@ -93,12 +84,8 @@ class LocalStorageService {
       }
 
       // 2. Guardar directamente - ¡SIN FILESYSTEM!
-      console.log("📸 Ejecutando saveToLibraryAsync...");
-      const asset = await MediaLibrary.saveToLibraryAsync(imageUri);
 
-      console.log("✅ Imagen guardada exitosamente!");
-      console.log("   URI del asset:", asset.uri);
-      console.log("=".repeat(50));
+      const asset = await MediaLibrary.saveToLibraryAsync(imageUri);
 
       return {
         success: true,

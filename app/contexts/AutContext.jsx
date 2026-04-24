@@ -33,18 +33,12 @@ export const AuthProvider = ({ children }) => {
 
   // 🔥 FIX CRÍTICO: Cargar userData inmediatamente cuando cambia el usuario
   useEffect(() => {
-    console.log("🔄 [AUTH] useEffect iniciado");
-
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      console.log("👤 [AUTH] onAuthStateChanged:", firebaseUser?.email);
-
       setUser(firebaseUser);
 
       if (firebaseUser) {
-        console.log("📥 [AUTH] Usuario detectado, cargando datos...");
         await loadUserData(firebaseUser.uid);
       } else {
-        console.log("🚪 [AUTH] No hay usuario, limpiando datos");
         setUserData(null);
       }
       setInitialized(true);
@@ -60,17 +54,11 @@ export const AuthProvider = ({ children }) => {
   // 🔥 NUEVO: Función para manejar refresh de tokens
   const handleTokenRefresh = async (firebaseUser) => {
     try {
-      console.log("🔄 [AUTH] Verificando token...");
-
       // Obtener información del token actual
       const tokenResult = await firebaseUser.getIdTokenResult(false);
       const expiration = new Date(tokenResult.expirationTime);
       const now = new Date();
       const minutesLeft = (expiration - now) / (1000 * 60);
-
-      console.log(
-        `⏰ [AUTH] Token expira en: ${minutesLeft.toFixed(1)} minutos`,
-      );
 
       // Guardar token y expiración
       setToken(tokenResult.token);
@@ -78,7 +66,6 @@ export const AuthProvider = ({ children }) => {
 
       // Si el token está por expirar (< 5 min), refrescar automáticamente
       if (minutesLeft < 5) {
-        console.log("⚠️ [AUTH] Token casi expirado, refrescando...");
         await refreshToken(firebaseUser);
       }
     } catch (error) {
@@ -98,7 +85,6 @@ export const AuthProvider = ({ children }) => {
           refreshError.code === "auth/user-token-expired" ||
           refreshError.code === "auth/invalid-user-token"
         ) {
-          console.log("🔓 [AUTH] Token inválido, cerrando sesión...");
           await auth.signOut();
         }
       }
@@ -108,15 +94,12 @@ export const AuthProvider = ({ children }) => {
   // 🔥 NUEVO: Función para refrescar token
   const refreshToken = async (firebaseUser) => {
     if (isTokenRefreshing) {
-      console.log("⏳ [AUTH] Ya se está refrescando token, esperando...");
       return;
     }
 
     setIsTokenRefreshing(true);
 
     try {
-      console.log("🔄 [AUTH] Refrescando token...");
-
       // Forzar refresh
       const newToken = await firebaseUser.getIdToken(true);
       const tokenResult = await firebaseUser.getIdTokenResult(true);
@@ -125,9 +108,6 @@ export const AuthProvider = ({ children }) => {
       setToken(newToken);
       setTokenExpiry(new Date(tokenResult.expirationTime));
       setLastTokenRefresh(new Date());
-
-      console.log("✅ [AUTH] Token refrescado exitosamente");
-      console.log(`   Nueva expiración: ${tokenResult.expirationTime}`);
     } catch (error) {
       console.error("❌ [AUTH] Error refrescando token:", error);
       throw error;
@@ -139,34 +119,22 @@ export const AuthProvider = ({ children }) => {
   // 🔥 FIX: Función loadUserData mejorada
   const loadUserData = async (userId) => {
     try {
-      console.log("=".repeat(40));
-      console.log("📥 [AUTH] loadUserData para:", userId);
-
       if (!userId) {
-        console.log("❌ [AUTH] userId es undefined");
         return;
       }
 
       const userDocRef = doc(db, "users", userId);
-      console.log("📄 [AUTH] Referencia creada");
 
       const userDoc = await getDoc(userDocRef);
-      console.log("✅ [AUTH] Documento leído, existe?:", userDoc.exists());
 
       if (userDoc.exists()) {
         const data = userDoc.data();
-        console.log("🎭 [AUTH] Rol encontrado:", data.role);
-        console.log("📊 [AUTH] Datos completos:", data);
 
         // 🔥 FIX CRÍTICO: Asegurar que se actualiza el estado
         setUserData(data);
-        console.log("🔄 [AUTH] userData actualizado en estado");
       } else {
-        console.log("⚠️ [AUTH] No hay documento, creando default...");
-
         const currentUser = auth.currentUser;
         if (!currentUser) {
-          console.log("❌ [AUTH] No hay currentUser para crear default");
           return;
         }
 
@@ -179,15 +147,11 @@ export const AuthProvider = ({ children }) => {
           active: true,
         };
 
-        console.log("📝 [AUTH] Creando documento default:", defaultUserData);
         await setDoc(userDocRef, defaultUserData);
 
         // 🔥 FIX: Actualizar estado inmediatamente
         setUserData(defaultUserData);
-        console.log("✅ [AUTH] Documento default creado y estado actualizado");
       }
-
-      console.log("=".repeat(40));
 
       //return data
     } catch (error) {
@@ -200,9 +164,6 @@ export const AuthProvider = ({ children }) => {
   // 🔥 FIX: Función login mejorada
   const login = async (email, password) => {
     try {
-      console.log("=".repeat(40));
-      console.log("🔄 [AUTH] login iniciado para:", email);
-
       const userCredential = await signInWithEmailAndPassword(
         auth,
         email,
@@ -210,12 +171,7 @@ export const AuthProvider = ({ children }) => {
       );
       const firebaseUser = userCredential.user;
 
-      console.log("✅ [AUTH] Firebase auth exitoso");
-      console.log("   UID:", firebaseUser.uid);
-      console.log("   Email:", firebaseUser.email);
-
       // 🔥 FIX CRÍTICO: Esperar explícitamente a que cargue userData
-      console.log("📥 [AUTH] Cargando userData después de login...");
       const loadedUserData = await loadUserData(firebaseUser.uid);
 
       // 🔥 NUEVO: Crear una promesa para esperar la actualización del estado
@@ -223,9 +179,6 @@ export const AuthProvider = ({ children }) => {
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Verificar que userData se cargó
-      console.log("🔍 [AUTH] userData después de loadUserData:", userData);
-
-      console.log("=".repeat(40));
 
       return {
         success: true,
@@ -270,16 +223,12 @@ export const AuthProvider = ({ children }) => {
   // 🔥 FIX: Función register mejorada
   const register = async (email, password, displayName = "") => {
     try {
-      console.log("🔄 [AUTH] Registrando:", email);
-
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         email,
         password,
       );
       const firebaseUser = userCredential.user;
-
-      console.log("✅ [AUTH] Usuario creado en Auth:", firebaseUser.uid);
 
       // Actualizar perfil
       if (displayName) {
@@ -297,13 +246,11 @@ export const AuthProvider = ({ children }) => {
         emailVerified: false,
       };
 
-      console.log("📝 [AUTH] Creando documento en Firestore:", newUserData);
       const userDocRef = doc(db, "users", firebaseUser.uid);
       await setDoc(userDocRef, newUserData);
 
       // 🔥 FIX: Actualizar estado inmediatamente
       setUserData(newUserData);
-      console.log("✅ [AUTH] Estado actualizado");
 
       return {
         success: true,
@@ -340,9 +287,6 @@ export const AuthProvider = ({ children }) => {
   };
   const loginAndWait = async (email, password) => {
     try {
-      console.log("=".repeat(40));
-      console.log("🔐 [AUTH] loginAndWait para:", email);
-
       // 1. Autenticar
       const userCredential = await signInWithEmailAndPassword(
         auth,
@@ -351,13 +295,10 @@ export const AuthProvider = ({ children }) => {
       );
       const firebaseUser = userCredential.user;
 
-      console.log("✅ [AUTH] Usuario autenticado:", firebaseUser.uid);
-
       // 2. Crear una promesa para esperar userData
       return new Promise((resolve) => {
         const checkUserData = () => {
           if (userData) {
-            console.log("📦 [AUTH] userData cargado:", userData.role);
             resolve({
               success: true,
               user: firebaseUser,
@@ -365,7 +306,6 @@ export const AuthProvider = ({ children }) => {
               message: "Inicio de sesión exitoso",
             });
           } else {
-            console.log("⏳ [AUTH] Esperando userData...");
             setTimeout(checkUserData, 100);
           }
         };
@@ -447,21 +387,9 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // 🔥 NUEVO: Función para verificar el estado actual
-  const debugAuthState = () => {
-    console.log("=".repeat(40));
-    console.log("🐛 [AUTH] DEBUG - Estado actual:");
-    console.log("   auth.currentUser:", auth.currentUser?.email);
-    console.log("   estado user:", user?.email);
-    console.log("   estado userData:", userData);
-    console.log("   estado loading:", loading);
-    console.log("=".repeat(40));
-  };
-
   // 🔥 NUEVO: Función para forzar recarga de userData
   const forceReloadUserData = async () => {
     if (user) {
-      console.log("🔄 [AUTH] Forzando recarga de userData");
       await loadUserData(user.uid);
     }
   };
@@ -518,16 +446,12 @@ export const AuthProvider = ({ children }) => {
     // Funciones de utilidad
     refreshUserData: () => user && loadUserData(user.uid),
     forceReloadUserData,
-    debugAuthState,
 
     // 🔥 FIX: Función getRedirectPath corregida
     getRedirectPath: () => {
       if (!userData) {
-        console.log("🛑 [AUTH] getRedirectPath: userData es null");
         return null;
       }
-
-      console.log(`🛣️ [AUTH] getRedirectPath: rol=${userData.role}`);
 
       if (userData.role === "admin") {
         return "/(tabs-admin)/home";

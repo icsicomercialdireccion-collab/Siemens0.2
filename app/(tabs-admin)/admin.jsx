@@ -36,7 +36,6 @@ const AdminScreen = () => {
   // 🔄 AUTO-REFRESH AL ENFOCAR
   useFocusEffect(
     useCallback(() => {
-      console.log("🔄 AdminScreen enfocada");
       if (!refreshing) {
         refreshInventories();
       }
@@ -99,7 +98,6 @@ const AdminScreen = () => {
   }
 
   const handleDetailsPress = (inventory) => {
-    console.log("Ver detalles del inventario:", inventory.id);
     // Navegar a detalles
     router.push({
       pathname: "/(details)/[id]",

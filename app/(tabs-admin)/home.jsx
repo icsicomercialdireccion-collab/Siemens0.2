@@ -25,22 +25,6 @@ const HomeScreenAdmin = () => {
   const { userData } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
 
-  // 👈 LOG PARA VERIFICAR
-  console.log("=".repeat(50));
-  console.log("🏠 [ADMIN HOME] Renderizando con:");
-  console.log("  - userInventories.length:", userInventories.length);
-  console.log("  - loading:", loading);
-  console.log("  - initialized:", initialized);
-  console.log("  - refreshing:", refreshing);
-
-  if (userInventories.length > 0) {
-    console.log(
-      "  - Inventarios:",
-      userInventories.map((i) => `${i.mes} ${i.anio}`).join(", "),
-    );
-  }
-  console.log("=".repeat(50));
-
   // 🔄 Función para pull-to-refresh
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -56,7 +40,6 @@ const HomeScreenAdmin = () => {
   // 🔄 Actualizar automáticamente cuando la pantalla gana foco
   useFocusEffect(
     useCallback(() => {
-      console.log("🔄 HomeScreenAdmin: Pantalla enfocada, actualizando...");
       if (refreshInventories) {
         refreshInventories();
       }
@@ -104,7 +87,6 @@ const HomeScreenAdmin = () => {
   }
 
   const handleDetailsPress = (inventory) => {
-    console.log("Ver detalles del inventario:", inventory.id);
     router.push({
       pathname: "/(details)/[id]",
       params: { id: inventory.id },

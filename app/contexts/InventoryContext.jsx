@@ -65,14 +65,10 @@ export const InventoryProvider = ({ children }) => {
 
   const fetchAllInventories = async () => {
     try {
-      console.log("🔍 Buscando TODOS los inventarios (admin)");
-
       // 👈 SIN orderBy en la consulta (para evitar crear otro índice)
       const q = query(collection(db, "inventarios"));
 
       const snapshot = await getDocs(q);
-
-      console.log(`📊 Encontrados ${snapshot.docs.length} documentos en total`);
 
       const inventories = snapshot.docs.map((doc) => ({
         id: doc.id,
@@ -90,8 +86,6 @@ export const InventoryProvider = ({ children }) => {
         return dateB - dateA; // Descendente
       });
 
-      console.log(`📊 Inventarios ordenados: ${sortedInventories.length}`);
-
       return sortedInventories;
     } catch (error) {
       console.error("Error fetchAllInventories:", error);
@@ -102,13 +96,8 @@ export const InventoryProvider = ({ children }) => {
   // ==================== FUNCIÓN PRINCIPAL DE CARGA ====================
 
   const loadInventories = async () => {
-    console.log("📥 [INVENTORY] loadInventories INICIADO");
-    console.log("  - user?.uid:", user?.uid);
-    console.log("  - userData?.role:", userData?.role);
-
     // Caso 1: No hay usuario
     if (!user) {
-      console.log("❌ No hay usuario, limpiando inventarios");
       setUserInventories([]);
       setAllInventories([]);
       setInitialized(true);
@@ -118,7 +107,6 @@ export const InventoryProvider = ({ children }) => {
 
     // Caso 2: Hay usuario pero no userData - esperar
     if (user && !userData) {
-      console.log("⏳ Esperando userData...");
       setLoading(true);
       setInitialized(false);
       return;
@@ -127,7 +115,6 @@ export const InventoryProvider = ({ children }) => {
     // Caso 3: Hay usuario y userData - cargar inventarios
     try {
       setLoading(true);
-      console.log("📥 Cargando inventarios para:", user.uid);
 
       const userInv = await fetchUserInventories(user.uid);
       const isAdmin = userData?.role === "admin";
@@ -170,11 +157,7 @@ export const InventoryProvider = ({ children }) => {
   // ==================== EFECTO DE INICIALIZACIÓN ====================
   // Solo se ejecuta UNA VEZ al montar el componente
   useEffect(() => {
-    console.log("⚡ InventoryProvider montado");
-
     const unsubscribe = auth.onAuthStateChanged((authUser) => {
-      console.log("👤 Auth changed:", authUser?.email || "No user");
-
       if (authUser && isMounted.current) {
         // Si hay usuario autenticado, cargar inventarios
         loadInventories();
@@ -188,7 +171,6 @@ export const InventoryProvider = ({ children }) => {
     });
 
     return () => {
-      console.log("🧹 InventoryProvider desmontado");
       isMounted.current = false;
       unsubscribe();
     };
@@ -197,19 +179,15 @@ export const InventoryProvider = ({ children }) => {
   // ==================== REFRESH INVENTARIOS ====================
 
   const refreshInventories = async () => {
-    console.log("🔄 refreshInventories llamado");
-
     if (!isMounted.current) return;
 
     const currentUser = auth.currentUser;
     if (!currentUser) {
-      console.log("⚠️ No hay usuario autenticado para refrescar");
       return { success: false, error: "No hay usuario autenticado" };
     }
 
     try {
       const userId = currentUser.uid;
-      console.log("🔄 Refrescando inventarios para:", userId);
 
       const userInv = await fetchUserInventories(userId);
       const isAdmin = userData?.role === "admin";
@@ -219,11 +197,6 @@ export const InventoryProvider = ({ children }) => {
         setUserInventories(userInv);
         setAllInventories(allInv);
         setLastRefresh(new Date());
-        console.log("✅ Inventarios actualizados:", {
-          user: userInv.length,
-          all: allInv.length,
-          isAdmin,
-        });
       }
 
       return {
@@ -246,8 +219,6 @@ export const InventoryProvider = ({ children }) => {
     }
 
     try {
-      console.log("📝 Creando inventario para usuario:", currentUser.uid);
-
       const inventoryWithMeta = {
         mes: inventoryData.mes,
         anio: parseInt(inventoryData.anio),
@@ -267,8 +238,6 @@ export const InventoryProvider = ({ children }) => {
         collection(db, "inventarios"),
         inventoryWithMeta,
       );
-
-      console.log("✅ Inventario creado en Firebase, ID:", docRef.id);
 
       const newInventory = {
         id: docRef.id,
@@ -290,7 +259,6 @@ export const InventoryProvider = ({ children }) => {
         // Actualizar inventarios del usuario
         setUserInventories((prev) => {
           const updated = [newInventory, ...prev];
-          console.log("📊 userInventories actualizado:", updated.length);
           return updated;
         });
 
@@ -298,7 +266,6 @@ export const InventoryProvider = ({ children }) => {
         if (userData?.role === "admin") {
           setAllInventories((prev) => {
             const updated = [newInventory, ...prev];
-            console.log("📊 allInventories actualizado:", updated.length);
             return updated;
           });
         }
@@ -333,13 +300,6 @@ export const InventoryProvider = ({ children }) => {
     fetchUserInventories,
     fetchAllInventories,
   };
-
-  console.log(
-    "🎨 InventoryProvider render - loading:",
-    loading,
-    "init:",
-    initialized,
-  );
 
   return (
     <InventoryContext.Provider value={value}>

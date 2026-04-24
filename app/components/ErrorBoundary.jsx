@@ -19,14 +19,7 @@ export default class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // Guardar error para debugging
-    console.log("❌ ErrorBoundary capturó:", error);
-    console.log("📍 Componente:", errorInfo.componentStack);
-
     this.setState({ errorInfo });
-
-    // Aquí puedes enviar el error a un servicio como Sentry
-    // o guardarlo en AsyncStorage para revisarlo después
   }
 
   handleReset = () => {

@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Image,
   Modal,
   ScrollView,
@@ -26,6 +27,8 @@ import * as DocumentPicker from "expo-document-picker";
 
 // ✅ IMPORTACIÓN PARA SDK 54
 import { CameraView, useCameraPermissions } from "expo-camera";
+
+import * as FileSystem from "expo-file-system";
 
 export default function PcForm() {
   const { inventoryId } = useLocalSearchParams();
@@ -67,8 +70,6 @@ export default function PcForm() {
     if (!saveImageLocally) return { success: false, skipped: true };
 
     try {
-      console.log("💾 Guardando imagen localmente para serial:", serial);
-
       const fileName = `equipo_${serial}_${Date.now()}.jpg`;
       const result = await LocalStorageService.saveImageToGallery(
         imageUri,
@@ -77,10 +78,8 @@ export default function PcForm() {
 
       if (result.success) {
         setImageSavedLocally(true);
-        console.log("✅ Imagen guardada localmente:", result.uri);
         return result;
       } else {
-        console.log("⚠️ No se pudo guardar imagen localmente:", result.error);
         return result;
       }
     } catch (error) {
@@ -93,7 +92,6 @@ export default function PcForm() {
   const handleBarCodeScanned = ({ type, data }) => {
     if (!scanned) {
       setScanned(true);
-      console.log("📦 Código escaneado:", { type, data });
 
       setFormData((prev) => ({
         ...prev,
@@ -163,7 +161,6 @@ export default function PcForm() {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const selectedImage = result.assets[0];
-        console.log("✅ Imagen seleccionada:", selectedImage.name);
 
         setFormData((prev) => ({
           ...prev,
@@ -207,20 +204,39 @@ export default function PcForm() {
     }
   };
 
+  const limpiarPreviewAnterior = async () => {
+    if (imagePreview && imagePreview.startsWith("file://")) {
+      await FileSystem.deleteAsync(imagePreview).catch(() => {});
+    }
+  };
+
   // ✅ FUNCIÓN PARA CAPTURAR FOTO
   const capturePhoto = async () => {
     if (photoCameraRef.current) {
       try {
         const photoOptions = {
-          quality: 0.4,
+          quality: 0.3,
           base64: false,
           exif: false,
           skipProcessing: true,
         };
-
+        await limpiarPreviewAnterior();
         const photo =
           await photoCameraRef.current.takePictureAsync(photoOptions);
         setShowCameraModal(false);
+
+        // 👈 Liberar referencia de la cámara
+        setTimeout(() => {
+          if (photoCameraRef.current) {
+            photoCameraRef.current.pausePreview?.();
+            photoCameraRef.current = null;
+          }
+        }, 100);
+
+        // 👈 Limpiar imagen anterior si existe
+        if (formData.imagen) {
+          await limpiarImagenTemporal(formData.imagen);
+        }
 
         setFormData((prev) => ({
           ...prev,
@@ -267,11 +283,7 @@ export default function PcForm() {
 
         if (saveResult.success) {
           localImageUri = saveResult.uri;
-          console.log("✅ Imagen guardada localmente en:", localImageUri);
         } else if (!saveResult.skipped) {
-          console.log(
-            "⚠️ No se pudo guardar imagen localmente, continuando...",
-          );
           // Mostrar alerta solo si no fue por permiso denegado
           if (saveResult.error?.includes("Permiso")) {
             Alert.alert(
@@ -298,6 +310,9 @@ export default function PcForm() {
       const result = await createEquipment(inventoryId, equipmentData);
 
       if (result.success) {
+        if (formData.imagen) {
+          await limpiarImagenTemporal(formData.imagen);
+        }
         // Mensaje de éxito personalizado
         let successMessage = "✅ Equipo registrado correctamente";
         if (localImageUri) {
@@ -347,6 +362,108 @@ export default function PcForm() {
       setIsSaving(false);
     }
   };
+
+  const regionOfInterest = useMemo(() => {
+    // Marco más ancho (85% de la pantalla) y más bajo (25% de la pantalla)
+    const frameWidth = 0.85;
+    const frameHeight = 0.35;
+
+    // Centrar el marco
+    const offsetX = (1 - frameWidth) / 2; // 0.075
+    const offsetY = (1 - frameHeight) / 2; // 0.375
+
+    return {
+      x: offsetX,
+      y: offsetY,
+      width: frameWidth,
+      height: frameHeight,
+    };
+  }, []);
+
+  const [scanAnimation] = useState(new Animated.Value(0));
+
+  useEffect(() => {
+    let animation;
+    if (!scanned && showScanner) {
+      // 👈 Solo cuando el scanner está visible
+      animation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(scanAnimation, {
+            toValue: 1,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(scanAnimation, {
+            toValue: 0,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+        ]),
+      ).start();
+    }
+    return () => {
+      if (animation) {
+        animation.stop(); // 👈 Detener animación al cerrar
+      }
+    };
+  }, [scanned, showScanner]);
+
+  // Función para limpiar imagen temporal
+  const limpiarImagenTemporal = async (uri) => {
+    if (uri && uri.startsWith("file://")) {
+      try {
+        const fileInfo = await FileSystem.getInfoAsync(uri);
+        if (fileInfo.exists) {
+          await FileSystem.deleteAsync(uri);
+        }
+      } catch (error) {}
+    }
+  };
+
+  // Función para resetear completamente el formulario
+  const resetFormularioCompleto = async () => {
+    // Limpiar imagen temporal actual
+    if (formData.imagen) {
+      await limpiarImagenTemporal(formData.imagen);
+    }
+    if (imagePreview) {
+      await limpiarImagenTemporal(imagePreview);
+    }
+
+    // Resetear estados
+    setFormData({
+      serial: "",
+      notas: "nuevo",
+      imagen: null,
+      observaciones: "",
+    });
+    setImagePreview(null);
+    setImageSavedLocally(false);
+
+    // Forzar garbage collection si está disponible
+    if (global.gc) {
+      setTimeout(() => global.gc(), 100);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      // Limpiar imágenes temporales al salir del componente
+      if (formData.imagen) {
+        limpiarImagenTemporal(formData.imagen);
+      }
+      if (imagePreview) {
+        limpiarImagenTemporal(imagePreview);
+      }
+      // Liberar referencias de cámara
+      if (scannerCameraRef.current) {
+        scannerCameraRef.current = null;
+      }
+      if (photoCameraRef.current) {
+        photoCameraRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <>
@@ -642,53 +759,54 @@ export default function PcForm() {
             <View style={{ width: 40 }} />
           </View>
 
-          {/* CameraView */}
+          {/* Camera Container - CameraView SIN hijos */}
           {permission?.granted ? (
             <View style={formEquipmentStyle.cameraContainer}>
+              {/* Solo CameraView, sin hijos */}
               <CameraView
                 ref={scannerCameraRef}
                 style={StyleSheet.absoluteFillObject}
                 facing="back"
                 barcodeScannerSettings={{
-                  barcodeTypes: ["ean13", "ean8", "code39", "code128"],
+                  barcodeTypes: ["code128"],
                   interval: 1000,
+                  regionOfInterest: regionOfInterest,
                 }}
                 onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-              >
-                {/* OVERLAY */}
-                <View style={formEquipmentStyle.scannerOverlay}>
-                  <View
-                    style={[
-                      formEquipmentStyle.scannerFrame,
-                      {
-                        width: screenWidth * 0.7,
-                        height: screenWidth * 0.7,
-                      },
-                    ]}
-                  >
-                    <View style={formEquipmentStyle.cornerTL} />
-                    <View style={formEquipmentStyle.cornerTR} />
-                    <View style={formEquipmentStyle.cornerBL} />
-                    <View style={formEquipmentStyle.cornerBR} />
+              />
 
-                    {!scanned && <View style={formEquipmentStyle.scanLine} />}
-                  </View>
-
-                  <View style={formEquipmentStyle.scannerInstructions}>
-                    <Text style={formEquipmentStyle.instructionsText}>
-                      {scanned
-                        ? "✅ Código detectado..."
-                        : "Apunta el código de barras dentro del marco"}
-                    </Text>
-                    <Ionicons
-                      name={scanned ? "checkmark-circle" : "scan-outline"}
-                      size={30}
-                      color="#fff"
-                      style={formEquipmentStyle.scanIcon}
-                    />
-                  </View>
+              {/* Overlay FUERA de CameraView - con posición absoluta */}
+              <View style={formEquipmentStyle.scannerOverlay}>
+                <View
+                  style={[
+                    formEquipmentStyle.scannerFrame,
+                    {
+                      width: screenWidth * 0.95,
+                      height: screenWidth * 0.35,
+                    },
+                  ]}
+                >
+                  <View style={formEquipmentStyle.cornerTL} />
+                  <View style={formEquipmentStyle.cornerTR} />
+                  <View style={formEquipmentStyle.cornerBL} />
+                  <View style={formEquipmentStyle.cornerBR} />
+                  {!scanned && <View style={formEquipmentStyle.scanLine} />}
                 </View>
-              </CameraView>
+
+                <View style={formEquipmentStyle.scannerInstructions}>
+                  <Text style={formEquipmentStyle.instructionsText}>
+                    {scanned
+                      ? "✅ Código detectado..."
+                      : "Apunta el código de barras dentro del marco"}
+                  </Text>
+                  <Ionicons
+                    name={scanned ? "checkmark-circle" : "barcode-outline"}
+                    size={30}
+                    color="#fff"
+                    style={formEquipmentStyle.scanIcon}
+                  />
+                </View>
+              </View>
             </View>
           ) : (
             <View style={styles.centered}>
@@ -723,7 +841,12 @@ export default function PcForm() {
         animationType="slide"
         presentationStyle="fullScreen"
         statusBarTranslucent={true}
-        onRequestClose={() => setShowCameraModal(false)}
+        onRequestClose={() => {
+          setShowCameraModal(false);
+          if (photoCameraRef.current) {
+            photoCameraRef.current = null;
+          }
+        }}
       >
         <View style={styles.cameraModalContainer}>
           {/* HEADER */}

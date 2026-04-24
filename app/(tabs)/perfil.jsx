@@ -45,7 +45,6 @@ export default function PerfilAdminScreen() {
         uid: user.uid,
       });
     } else if (user) {
-      console.log("⚠️ No hay userData en el contexto, usando datos básicos");
       setUserData({
         name: user.displayName || "Usuario",
         email: user.email || "No especificado",

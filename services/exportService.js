@@ -11,15 +11,12 @@ class ExportService {
 
   async testConnection() {
     try {
-      console.log("🧪 Probando conexión con Cloud Functions V1...");
-
       const user = auth.currentUser;
       if (!user) {
         return { success: false, error: "No autenticado" };
       }
 
       const result = await this.testFunction({ test: true });
-      console.log("✅ Test exitoso:", result.data);
 
       return { success: true, data: result.data };
     } catch (error) {
@@ -30,8 +27,6 @@ class ExportService {
 
   async startExport(inventoryId) {
     try {
-      console.log("📤 Iniciando exportación...");
-
       const user = auth.currentUser;
       if (!user) {
         return {
@@ -41,14 +36,11 @@ class ExportService {
         };
       }
 
-      console.log("✅ Usuario autenticado:", user.uid);
-
       // Forzar refresh del token antes de llamar
       await user.getIdToken(true);
 
       const result = await this.exportFunction({ inventoryId });
 
-      console.log("✅ Exportación iniciada:", result.data);
       return {
         success: true,
         ...result.data,
