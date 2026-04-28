@@ -95,6 +95,16 @@ export default function EquipmentList({
           <Text style={ListStyle.typeText}>{item.tipo || "computadora"}</Text>
         </View>
 
+        {/* Mostrar ubicación si existe */}
+        {item.ubicacion ? (
+          <View style={ListStyle.infoRow}>
+            <Ionicons name="location-sharp" size={14} color="#888" />
+            <Text style={ListStyle.ubicacionText} numberOfLines={1}>
+              {item.ubicacion}
+            </Text>
+          </View>
+        ) : null}
+
         {item.observaciones ? (
           <View style={ListStyle.observationsContainer}>
             <Ionicons name="document-text-outline" size={14} color="#888" />

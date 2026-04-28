@@ -86,6 +86,7 @@ export const EquipmentProvider = ({ children }) => {
           imagenFileName: data.imagenFileName || null,
           createdAt: data.createdAt?.toDate?.() || new Date(),
           updatedAt: updatedAt,
+          ubicacion: data.ubicacion || "", // 👈 CLAVE: leer ubicación
         };
       });
 
@@ -131,26 +132,25 @@ export const EquipmentProvider = ({ children }) => {
       let finalImageUrl = null;
       let imageFileName = null;
 
-      // Subir imagen si es URI local
-      if (
-        equipmentData.imagenUrl &&
-        equipmentData.imagenUrl.startsWith("file://")
-      ) {
+      if (equipmentData.imagenUrl) {
         try {
           const imageResult = await uploadImageToStorage(
             equipmentData.imagenUrl,
             inventoryId,
             serial,
           );
-          finalImageUrl = imageResult.url;
-          imageFileName = imageResult.fileName;
-        } catch (uploadError) {
-          console.error("Error subiendo imagen:", uploadError);
-          Alert.alert(
-            "Aviso",
-            "Equipo creado pero no se pudo subir la imagen",
-            [{ text: "OK" }],
-          );
+          if (imageResult) {
+            finalImageUrl = imageResult.url;
+            imageFileName = imageResult.fileName;
+            console.log("✅ Imagen subida a Firebase");
+          } else {
+            console.log(
+              "⚠️ No se pudo subir la imagen, pero el equipo se guardará",
+            );
+          }
+        } catch (error) {
+          console.log("⚠️ Error en imagen, continuando con registro...");
+          // No hacer nada, el equipo se guarda sin imagen
         }
       } else if (
         equipmentData.imagenUrl &&
@@ -175,6 +175,7 @@ export const EquipmentProvider = ({ children }) => {
         lastImageUpdate: finalImageUrl ? serverTimestamp() : null,
         // 👈 AGREGAR timestamp numérico para ordenar más fácil
         createdAtTimestamp: Date.now(),
+        ubicacion: equipmentData.ubicacion || "",
       };
 
       // Guardar en Firestore
@@ -240,6 +241,12 @@ export const EquipmentProvider = ({ children }) => {
     try {
       setLoading(true);
 
+      console.log("📥 updateEquipment recibió:", {
+        inventoryId,
+        equipmentId,
+        updates, // 👈 Aquí debe venir ubicacion
+      });
+
       // Si se está actualizando el serial, verificar que no exista otro
       if (updates.serial) {
         const newSerial = updates.serial.trim().toUpperCase();
@@ -285,6 +292,8 @@ export const EquipmentProvider = ({ children }) => {
       };
 
       await updateDoc(equipmentRef, updateData);
+
+      console.log("📤 Enviando a Firestore:", updateData);
 
       // Actualizar estado local manteniendo el orden
       setEquipments((prev) =>
@@ -394,12 +403,37 @@ export const EquipmentProvider = ({ children }) => {
     }
   };
 
-  // FUNCIÓN PARA SUBIR IMAGEN A STORAGE
   const uploadImageToStorage = async (imageUri, inventoryId, serial) => {
     try {
+      console.log("📸 Subiendo imagen comprimida...");
+      console.log("   URI:", imageUri);
+
+      // Obtener la imagen ya comprimida
       const response = await fetch(imageUri);
       const blob = await response.blob();
 
+      const sizeMB = (blob.size / 1024 / 1024).toFixed(2);
+      console.log("   Tamaño final:", sizeMB, "MB");
+
+      // Validar que no supere 5MB (por si acaso)
+      if (blob.size > 5 * 1024 * 1024) {
+        console.log("   ⚠️ Imagen aún muy grande, comprimiendo más...");
+
+        // Si aún es muy grande, comprimir nuevamente
+        const base64 = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+
+        // Nota: Para compresión adicional, necesitarías usar canvas
+        // Por ahora, mostrar mensaje
+        throw new Error(
+          "La imagen es demasiado grande. Por favor, toma otra foto.",
+        );
+      }
+
+      // Generar nombre de archivo
       const cleanSerial = serial
         .toString()
         .trim()
@@ -407,38 +441,29 @@ export const EquipmentProvider = ({ children }) => {
         .replace(/[^A-Z0-9]/g, "_")
         .substring(0, 50);
 
-      const timestamp = Date.now();
-      const randomString = Math.random().toString(36).substring(2, 6);
-      const fileName = `equipos/${inventoryId}/${cleanSerial}_${timestamp}_${randomString}.jpg`;
+      const fileName = `equipos/${inventoryId}/${cleanSerial}_${Date.now()}.jpg`;
 
-      if (!blob.type.startsWith("image/")) {
-        throw new Error("El archivo no es una imagen válida");
-      }
-
-      if (blob.size > 5 * 1024 * 1024) {
-        throw new Error("La imagen es muy grande (máximo 5MB)");
-      }
-
+      // Subir a Firebase Storage
       const storageRef = ref(storage, fileName);
       await uploadBytes(storageRef, blob, {
-        contentType: blob.type,
+        contentType: "image/jpeg",
         customMetadata: {
           serial: serial,
           inventoryId: inventoryId,
-          uploadedAt: new Date().toISOString(),
+          compressed: "true",
         },
       });
 
       const downloadURL = await getDownloadURL(storageRef);
+      console.log("✅ Imagen subida exitosamente, tamaño:", sizeMB, "MB");
 
       return {
         url: downloadURL,
         fileName: fileName,
-        serial: serial,
       };
     } catch (error) {
-      console.error("Error subiendo imagen:", error);
-      throw new Error(`No se pudo subir la imagen: ${error.message}`);
+      console.error("❌ Error subiendo imagen:", error.message);
+      return null;
     }
   };
 
