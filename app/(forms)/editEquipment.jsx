@@ -39,6 +39,7 @@ export default function EditEquipmentScreen() {
     serial: "",
     estado: "nuevo",
     observaciones: "",
+    ubicacion: "",
     imagenUrl: null,
     currentImageUrl: null,
   });
@@ -69,6 +70,7 @@ export default function EditEquipmentScreen() {
           observaciones: parsedData.observaciones || "",
           imagenUrl: parsedData.imagenUrl || null,
           currentImageUrl: parsedData.imagenUrl || null,
+          ubicacion: parsedData.ubicacion || "",
         });
       } catch (error) {
         console.error("Error parsing equipment data:", error);
@@ -287,6 +289,7 @@ export default function EditEquipmentScreen() {
         serial: serial,
         estado: formData.estado,
         observaciones: formData.observaciones.trim(),
+        ubicacion: formData.ubicacion.trim(),
       };
 
       if (finalImageUrl !== formData.currentImageUrl) {
@@ -300,14 +303,13 @@ export default function EditEquipmentScreen() {
 
       // 4. Verificar cambios
       const hasChanges = Object.keys(updateData).some((key) => {
-        if (key === "imagenUrl" || key === "imagenFileName") return true;
+        // Si es imagen, considerar que hay cambio si se modificó
+        if (key === "imagenUrl" || key === "imagenFileName") {
+          return finalImageUrl !== formData.currentImageUrl;
+        }
+        // Para ubicacion y otros campos
         return updateData[key] !== originalData?.[key];
       });
-
-      if (!hasChanges && !localImageUri) {
-        Alert.alert("Sin cambios", "No se detectaron cambios para actualizar");
-        return;
-      }
 
       // 5. Ejecutar actualización
       const result = await updateEquipment(
@@ -381,6 +383,7 @@ export default function EditEquipmentScreen() {
         serial: formData.serial.trim().toUpperCase(),
         estado: formData.estado,
         observaciones: formData.observaciones.trim(),
+        ubicacion: formData.ubicacion ? formData.ubicacion.trim() : "",
       };
 
       // Solo agregar campos de imagen si cambiaron
@@ -392,6 +395,8 @@ export default function EditEquipmentScreen() {
           updateData.imagenFileName = null;
         }
       }
+
+      console.log("📤 updateData a enviar:", updateData); // 👈 Debe incluir ubicacion
 
       // Verificar si hay cambios reales
       const hasChanges = Object.keys(updateData).some((key) => {
@@ -435,6 +440,7 @@ export default function EditEquipmentScreen() {
       formData.serial !== originalData?.serial ||
       formData.estado !== originalData?.estado ||
       formData.observaciones !== originalData?.observaciones ||
+      formData.ubicacion !== originalData?.ubicacion ||
       (image && image !== originalData?.imagenUrl) ||
       (!image && originalData?.imagenUrl && formData.imagenUrl === null);
 
@@ -584,6 +590,23 @@ export default function EditEquipmentScreen() {
                 autoCapitalize="characters"
                 editable={!isLoading}
               />
+            </View>
+
+            <View style={FormEditStyle.inputGroup}>
+              <Text style={FormEditStyle.label}>📍 Ubicación específica</Text>
+              <TextInput
+                style={FormEditStyle.input}
+                value={formData.ubicacion}
+                onChangeText={(text) =>
+                  setFormData({ ...formData, ubicacion: text })
+                }
+                placeholder="Ej: Planta baja, oficina 101, bodega norte"
+                placeholderTextColor="#999"
+                editable={!isLoading}
+              />
+              <Text style={FormEditStyle.helperText}>
+                Lugar exacto donde se encuentra el equipo
+              </Text>
             </View>
 
             {/* Estado */}

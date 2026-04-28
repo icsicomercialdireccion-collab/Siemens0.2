@@ -85,11 +85,11 @@ export default {
         foregroundImageType: "png",
       },
       package: "com.siemens.inventario02",
-      versionCode: 2,
+      versionCode: 3,
       // CONFIGURACIONES CRÍTICAS PARA GRADLE
-      compileSdkVersion: 35,
-      targetSdkVersion: 35,
-      buildToolsVersion: "35.0.0",
+      compileSdkVersion: 34,
+      targetSdkVersion: 34,
+      buildToolsVersion: "34.0.0",
 
       config: {
         largeHeap: true, // Permite usar más memoria
@@ -102,9 +102,11 @@ export default {
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.READ_MEDIA_VIDEO", // 👈 Para compatibilidad
-        "android.permission.READ_MEDIA_AUDIO", // 👈 Requerido por media-library
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO",
         "android.permission.RECORD_AUDIO",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.USE_FULL_SCREEN_INTENT",
       ],
       cameraPermission:
         "Permite que $(PRODUCT_NAME) acceda a tu cámara para escanear códigos de barras y tomar fotos.",

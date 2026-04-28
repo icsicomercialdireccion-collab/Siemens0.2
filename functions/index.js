@@ -265,9 +265,11 @@ exports.exportInventory = onRequest(
         const estadoMap = {
           nuevo: "Equipo nuevo",
           usado: "Equipo usado",
-          dañado: "Equipo dañado",
+          danado: "Equipo dañado",
           reparacion: "Equipo reparado",
         };
+
+        const ubicacionEquipo = equipo.ubicacion || "";
 
         const estadoTransformado =
           estadoMap[estadoOriginal] || estadoOriginal || "Sin especificar";
@@ -276,7 +278,7 @@ exports.exportInventory = onRequest(
         worksheet.getCell(`B${currentRow}`).value = serial;
 
         // 👈 COLUMNA D (índice 4) = Ubicación física (del inventario)
-        worksheet.getCell(`D${currentRow}`).value = ubicacionFinal;
+        worksheet.getCell(`D${currentRow}`).value = ubicacionEquipo;
 
         // 👈 COLUMNA F (índice 6) = Notas
         worksheet.getCell(`F${currentRow}`).value = estadoTransformado;

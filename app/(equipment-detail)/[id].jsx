@@ -229,6 +229,14 @@ export default function EquipmentDetailScreen() {
           </View>
 
           <View style={PcDetailStyle.infoRow}>
+            <Ionicons name="location-sharp" size={20} color={COLORS.primary} />
+            <Text style={PcDetailStyle.infoLabel}>Ubicación:</Text>
+            <Text style={PcDetailStyle.infoValue}>
+              {equipment.ubicacion || "No especificada"}
+            </Text>
+          </View>
+
+          <View style={PcDetailStyle.infoRow}>
             <Ionicons
               name="calendar-outline"
               size={20}

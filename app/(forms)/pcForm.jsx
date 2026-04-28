@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
+import * as ImageManipulator from "expo-image-manipulator"; // 👈 Agregar esta importación
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -20,6 +21,7 @@ import {
 import { formEquipmentStyle } from "../../assets/styles/formEquitpment.style";
 import { COLORS } from "../../constants/colors";
 import LocalStorageService from "../../services/localStorageService";
+import UbicacionService from "../../services/UbicacionService";
 import { useEquipment } from "../contexts/EquipmentContext";
 
 // ✅ USAR expo-document-picker (más estable para Expo)
@@ -44,6 +46,7 @@ export default function PcForm() {
   const [formData, setFormData] = useState({
     serial: "",
     notas: "nuevo",
+    ubicacion: "",
     imagen: null,
     observaciones: "",
   });
@@ -64,6 +67,28 @@ export default function PcForm() {
 
   const scannerCameraRef = useRef(null);
   const photoCameraRef = useRef(null);
+
+  const [sugerencias, setSugerencias] = useState([]);
+  const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
+
+  const buscarSugerencias = async (texto) => {
+    setFormData((prev) => ({ ...prev, ubicacion: texto }));
+
+    if (texto.length >= 2) {
+      const resultados = await UbicacionService.buscarUbicaciones(texto);
+      setSugerencias(resultados);
+      setMostrarSugerencias(resultados.length > 0);
+    } else {
+      setSugerencias([]);
+      setMostrarSugerencias(false);
+    }
+  };
+
+  // Seleccionar sugerencia
+  const seleccionarSugerencia = (ubicacion) => {
+    setFormData((prev) => ({ ...prev, ubicacion }));
+    setMostrarSugerencias(false);
+  };
 
   // 👈 FUNCIÓN: Guardar imagen en galería
   const saveImageToDevice = async (imageUri, serial) => {
@@ -151,6 +176,8 @@ export default function PcForm() {
   };
 
   // ✅ FUNCIÓN PARA SELECCIONAR IMAGEN CON expo-document-picker
+  // app/(forms)/pcForm.jsx
+
   const pickImage = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -161,14 +188,23 @@ export default function PcForm() {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const selectedImage = result.assets[0];
+        console.log("✅ Imagen seleccionada:", selectedImage.name);
+        console.log("   URI original:", selectedImage.uri);
+
+        // 👈 Comprimir imagen seleccionada
+        const compressedImage = await ImageManipulator.manipulateAsync(
+          selectedImage.uri,
+          [{ resize: { width: 1024 } }],
+          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG },
+        );
+
+        console.log("   URI comprimida:", compressedImage.uri);
 
         setFormData((prev) => ({
           ...prev,
-          imagen: selectedImage.uri,
+          imagen: compressedImage.uri,
         }));
-        setImagePreview(selectedImage.uri);
-
-        // Resetear estado de guardado local
+        setImagePreview(compressedImage.uri);
         setImageSavedLocally(false);
 
         Alert.alert(
@@ -214,42 +250,39 @@ export default function PcForm() {
   const capturePhoto = async () => {
     if (photoCameraRef.current) {
       try {
+        // 1. Tomar la foto con calidad reducida
         const photoOptions = {
-          quality: 0.3,
+          quality: 0.5,
           base64: false,
           exif: false,
           skipProcessing: true,
         };
-        await limpiarPreviewAnterior();
+
         const photo =
           await photoCameraRef.current.takePictureAsync(photoOptions);
+        console.log("📸 Foto original:", photo.uri);
+
+        // 2. Comprimir la imagen con expo-image-manipulator
+        const compressedPhoto = await ImageManipulator.manipulateAsync(
+          photo.uri,
+          [
+            { resize: { width: 1024 } }, // Reducir ancho a 1024px (mantiene proporción)
+          ],
+          {
+            compress: 0.7, // Calidad 70%
+            format: ImageManipulator.SaveFormat.JPEG,
+          },
+        );
+
+        console.log("📸 Foto comprimida, tamaño reducido");
+        console.log("   URI comprimida:", compressedPhoto.uri);
+
         setShowCameraModal(false);
-
-        // 👈 Liberar referencia de la cámara
-        setTimeout(() => {
-          if (photoCameraRef.current) {
-            photoCameraRef.current.pausePreview?.();
-            photoCameraRef.current = null;
-          }
-        }, 100);
-
-        // 👈 Limpiar imagen anterior si existe
-        if (formData.imagen) {
-          await limpiarImagenTemporal(formData.imagen);
-        }
-
-        setFormData((prev) => ({
-          ...prev,
-          imagen: photo.uri,
-        }));
-        setImagePreview(photo.uri);
-
-        // Resetear estado de guardado local
+        setFormData((prev) => ({ ...prev, imagen: compressedPhoto.uri }));
+        setImagePreview(compressedPhoto.uri);
         setImageSavedLocally(false);
 
-        Alert.alert("Foto tomada", "Foto guardada exitosamente", [
-          { text: "OK" },
-        ]);
+        Alert.alert("Foto tomada", "Foto guardada exitosamente");
       } catch (error) {
         console.error("Error tomando foto:", error);
         Alert.alert("Error", "No se pudo tomar la foto");
@@ -304,6 +337,7 @@ export default function PcForm() {
         tipo: "computadora",
         createdAt: new Date().toISOString(),
         localImageUri: localImageUri,
+        ubicacion: formData.ubicacion,
       };
 
       // 3. Crear equipo en Firebase
@@ -312,6 +346,9 @@ export default function PcForm() {
       if (result.success) {
         if (formData.imagen) {
           await limpiarImagenTemporal(formData.imagen);
+        }
+        if (formData.ubicacion) {
+          await UbicacionService.guardarUbicacion(formData.ubicacion);
         }
         // Mensaje de éxito personalizado
         let successMessage = "✅ Equipo registrado correctamente";
@@ -334,6 +371,7 @@ export default function PcForm() {
                 notas: "nuevo",
                 imagen: null,
                 observaciones: "",
+                ubicacion: "",
               });
               setImagePreview(null);
               setImageSavedLocally(false);
@@ -564,6 +602,54 @@ export default function PcForm() {
 
               <Text style={formEquipmentStyle.helperText}>
                 Este campo es obligatorio. Usa mayúsculas o escanea el código.
+              </Text>
+            </View>
+          </View>
+
+          {/* SECCIÓN: UBICACIÓN FÍSICA (NUEVA) */}
+          <View style={formEquipmentStyle.section}>
+            <Text style={formEquipmentStyle.sectionTitle}>
+              📍 Ubicación Física
+            </Text>
+
+            <View style={formEquipmentStyle.inputGroup}>
+              <Text style={formEquipmentStyle.label}>
+                Ubicación específica (ej: Planta baja, oficina 101)
+              </Text>
+
+              <TextInput
+                style={formEquipmentStyle.input}
+                value={formData.ubicacion}
+                onChangeText={buscarSugerencias}
+                placeholder="Ej: Planta baja, oficina 101, bodega norte"
+                placeholderTextColor="#999"
+                editable={!loading && !isSaving}
+              />
+
+              {/* Sugerencias */}
+              {mostrarSugerencias && sugerencias.length > 0 && (
+                <View style={formEquipmentStyle.sugerenciasContainer}>
+                  {sugerencias.map((item, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={formEquipmentStyle.sugerenciaItem}
+                      onPress={() => seleccionarSugerencia(item)}
+                    >
+                      <Ionicons
+                        name="location-outline"
+                        size={16}
+                        color={COLORS.primary}
+                      />
+                      <Text style={formEquipmentStyle.sugerenciaText}>
+                        {item}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              <Text style={formEquipmentStyle.helperText}>
+                Especifica el lugar exacto donde se encuentra el equipo
               </Text>
             </View>
           </View>
