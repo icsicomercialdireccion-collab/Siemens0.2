@@ -256,9 +256,8 @@ exports.exportInventory = onRequest(
 
       for (const doc of equiposSnapshot.docs) {
         const equipo = doc.data();
-        const serial =
-          equipo.serial || equipo.numeroSerie || equipo.codigo || "N/A";
-
+        const serial = equipo.serial || "N/A";
+        const observaciones = equipo.observaciones;
         const estadoOriginal = equipo.estado;
 
         // 👈 MAPEO DE ESTADOS (más elegante)
@@ -282,6 +281,8 @@ exports.exportInventory = onRequest(
 
         // 👈 COLUMNA F (índice 6) = Notas
         worksheet.getCell(`F${currentRow}`).value = estadoTransformado;
+
+        worksheet.getCell(`H${currentRow}`).value = observaciones;
 
         // 👈 COLUMNA G (índice 7) = Imagen
         const imagenUrl = equipo.imagenUrl || equipo.fotoUrl || null;
