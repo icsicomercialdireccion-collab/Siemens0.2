@@ -360,11 +360,15 @@ export const detailStyle = StyleSheet.create({
     color: COLORS.text,
     marginBottom: 10,
   },
-  fabTop: {
-    marginBottom: 10,
-    backgroundColor: "#4CAF50",
-  },
+
   fabBottom: {
     backgroundColor: COLORS.primary,
+  },
+
+  fabTop: {
+    bottom: 80,
+    right: 20,
+    backgroundColor: COLORS.primary,
+    position: "absolute",
   },
 });

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
-import * as ImageManipulator from "expo-image-manipulator"; // 👈 Agregar esta importación
+import * as ImageManipulator from "expo-image-manipulator";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -24,12 +24,8 @@ import LocalStorageService from "../../services/localStorageService";
 import UbicacionService from "../../services/UbicacionService";
 import { useEquipment } from "../contexts/EquipmentContext";
 
-// ✅ USAR expo-document-picker (más estable para Expo)
-import * as DocumentPicker from "expo-document-picker";
-
-// ✅ IMPORTACIÓN PARA SDK 54
 import { CameraView, useCameraPermissions } from "expo-camera";
-
+import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 
 export default function PcForm() {
@@ -38,30 +34,27 @@ export default function PcForm() {
   const { createEquipment, loading } = useEquipment();
 
   const { width: screenWidth } = useWindowDimensions();
-
-  // ✅ HOOK DE PERMISOS
   const [permission, requestPermission] = useCameraPermissions();
 
-  // Estados del formulario
+  // Estados del formulario (NUEVO ORDEN)
   const [formData, setFormData] = useState({
-    serial: "",
-    notas: "nuevo",
-    ubicacion: "",
+    serial: "", // Número de serie
+    perfil: "Standard", // 👈 NUEVO: Standard | Workstation | Ejecutiva | Mini | Tower
+    ubicacion: "", // Ubicación física
+    estado: "nuevo", // 👈 NUEVOS ESTADOS (valor interno)
+    esquema: "Activo Fijo", // 👈 NUEVO: Activo Fijo | CaaS
+    observaciones: "", // 👈 NUEVO: será picker con opciones fijas
+    nota: "", // 👈 NUEVO: campo Nota (texto libre)
     imagen: null,
-    observaciones: "",
   });
 
-  // 👈 Estado para guardar imagen localmente
   const [saveImageLocally, setSaveImageLocally] = useState(true);
   const [imageSavedLocally, setImageSavedLocally] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Estados del scanner
   const [showScanner, setShowScanner] = useState(false);
   const [scanned, setScanned] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
-
-  // Estado para modal de cámara de fotos
   const [showCameraModal, setShowCameraModal] = useState(false);
   const [cameraType, setCameraType] = useState("back");
 
@@ -71,9 +64,50 @@ export default function PcForm() {
   const [sugerencias, setSugerencias] = useState([]);
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
 
+  // Opciones de los pickers
+  const perfiles = ["Standard", "Workstation", "Ejecutiva", "Mini", "Tower"];
+  const estados = [
+    "Baja",
+    "Dañado Destrucción",
+    "Donación",
+    "En Reparación",
+    "Nuevo",
+    "Renovado",
+    "Venta",
+    "Usado con Garantía",
+    "Usado Sin Garantía",
+  ];
+  const esquemas = ["CaaS", "Activo Fijo"];
+  const observacionesOpciones = [
+    "Etiqueta Dañada",
+    "No carga imagen de Siemens",
+    "No esta en AMTO",
+    "No se puede instalar sistema operativo",
+    "No tiene acciones en myIT",
+    "Obtener Hash",
+    "Sin caja",
+    "Sin Cargador",
+    "Sin Cargador y Sin Caja",
+    "Sin etiqueta",
+    "Sin imagen",
+    "Otro",
+  ];
+
+  // Mapeo de estados a valores internos (para guardar en Firebase)
+  const estadoMap = {
+    Baja: "baja",
+    "Dañado Destrucción": "danado_destruccion",
+    Donación: "donacion",
+    "En Reparación": "reparacion",
+    Nuevo: "nuevo",
+    Renovado: "renovado",
+    Venta: "venta",
+    "Usado con Garantía": "usado_garantia",
+    "Usado Sin Garantía": "usado_sin_garantia",
+  };
+
   const buscarSugerencias = async (texto) => {
     setFormData((prev) => ({ ...prev, ubicacion: texto }));
-
     if (texto.length >= 2) {
       const resultados = await UbicacionService.buscarUbicaciones(texto);
       setSugerencias(resultados);
@@ -84,55 +118,38 @@ export default function PcForm() {
     }
   };
 
-  // Seleccionar sugerencia
   const seleccionarSugerencia = (ubicacion) => {
     setFormData((prev) => ({ ...prev, ubicacion }));
     setMostrarSugerencias(false);
   };
 
-  // 👈 FUNCIÓN: Guardar imagen en galería
   const saveImageToDevice = async (imageUri, serial) => {
     if (!saveImageLocally) return { success: false, skipped: true };
-
     try {
       const fileName = `equipo_${serial}_${Date.now()}.jpg`;
       const result = await LocalStorageService.saveImageToGallery(
         imageUri,
         fileName,
       );
-
-      if (result.success) {
-        setImageSavedLocally(true);
-        return result;
-      } else {
-        return result;
-      }
+      if (result.success) setImageSavedLocally(true);
+      return result;
     } catch (error) {
       console.error("❌ Error guardando imagen local:", error);
       return { success: false, error: error.message };
     }
   };
 
-  // ✅ MANEJAR CÓDIGO ESCANEADO
   const handleBarCodeScanned = ({ type, data }) => {
     if (!scanned) {
       setScanned(true);
-
-      setFormData((prev) => ({
-        ...prev,
-        serial: data,
-      }));
-
+      setFormData((prev) => ({ ...prev, serial: data }));
       setTimeout(() => {
         setShowScanner(false);
-        Alert.alert("✅ Código Escaneado", `Número de serie: ${data}`, [
-          { text: "OK" },
-        ]);
+        Alert.alert("✅ Código Escaneado", `Número de serie: ${data}`);
       }, 1500);
     }
   };
 
-  // ✅ ABRIR SCANNER
   const openScanner = async () => {
     try {
       if (!permission?.granted) {
@@ -141,21 +158,13 @@ export default function PcForm() {
           Alert.alert(
             "Permiso requerido",
             "Necesitas permitir el acceso a la cámara para escanear",
-            [{ text: "OK" }],
           );
           return;
         }
       }
-
       setScanned(false);
-      // Liberar memoria antes de abrir
-      if (global.gc) {
-        global.gc();
-      }
-
-      // Pequeña pausa para que se libere memoria
+      if (global.gc) global.gc();
       await new Promise((resolve) => setTimeout(resolve, 100));
-
       setShowScanner(true);
     } catch (error) {
       console.error("Error abriendo scanner:", error);
@@ -168,16 +177,6 @@ export default function PcForm() {
     setScanned(false);
   };
 
-  const handleInputChange = (field, value) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
-
-  // ✅ FUNCIÓN PARA SELECCIONAR IMAGEN CON expo-document-picker
-  // app/(forms)/pcForm.jsx
-
   const pickImage = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -185,32 +184,19 @@ export default function PcForm() {
         copyToCacheDirectory: true,
         multiple: false,
       });
-
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const selectedImage = result.assets[0];
-        console.log("✅ Imagen seleccionada:", selectedImage.name);
-        console.log("   URI original:", selectedImage.uri);
-
-        // 👈 Comprimir imagen seleccionada
         const compressedImage = await ImageManipulator.manipulateAsync(
           selectedImage.uri,
           [{ resize: { width: 1024 } }],
           { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG },
         );
-
-        console.log("   URI comprimida:", compressedImage.uri);
-
-        setFormData((prev) => ({
-          ...prev,
-          imagen: compressedImage.uri,
-        }));
+        setFormData((prev) => ({ ...prev, imagen: compressedImage.uri }));
         setImagePreview(compressedImage.uri);
         setImageSavedLocally(false);
-
         Alert.alert(
           "✅ Imagen seleccionada",
           `"${selectedImage.name}" cargada correctamente`,
-          [{ text: "OK" }],
         );
       }
     } catch (error) {
@@ -219,7 +205,6 @@ export default function PcForm() {
     }
   };
 
-  // ✅ FUNCIÓN PARA TOMAR FOTO
   const takePhoto = async () => {
     try {
       if (!permission?.granted) {
@@ -232,7 +217,6 @@ export default function PcForm() {
           return;
         }
       }
-
       setShowCameraModal(true);
     } catch (error) {
       console.error("❌ Error accediendo a la cámara:", error);
@@ -240,48 +224,30 @@ export default function PcForm() {
     }
   };
 
-  const limpiarPreviewAnterior = async () => {
-    if (imagePreview && imagePreview.startsWith("file://")) {
-      await FileSystem.deleteAsync(imagePreview).catch(() => {});
-    }
-  };
-
-  // ✅ FUNCIÓN PARA CAPTURAR FOTO
   const capturePhoto = async () => {
     if (photoCameraRef.current) {
       try {
-        // 1. Tomar la foto con calidad reducida
         const photoOptions = {
           quality: 0.5,
           base64: false,
           exif: false,
           skipProcessing: true,
         };
-
         const photo =
           await photoCameraRef.current.takePictureAsync(photoOptions);
-        console.log("📸 Foto original:", photo.uri);
-
-        // 2. Comprimir la imagen con expo-image-manipulator
         const compressedPhoto = await ImageManipulator.manipulateAsync(
           photo.uri,
-          [
-            { resize: { width: 1024 } }, // Reducir ancho a 1024px (mantiene proporción)
-          ],
-          {
-            compress: 0.7, // Calidad 70%
-            format: ImageManipulator.SaveFormat.JPEG,
-          },
+          [{ resize: { width: 1024 } }],
+          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG },
         );
-
-        console.log("📸 Foto comprimida, tamaño reducido");
-        console.log("   URI comprimida:", compressedPhoto.uri);
-
+        if (photoCameraRef.current) {
+          await photoCameraRef.current.pausePreview?.();
+          photoCameraRef.current = null;
+        }
         setShowCameraModal(false);
         setFormData((prev) => ({ ...prev, imagen: compressedPhoto.uri }));
         setImagePreview(compressedPhoto.uri);
         setImageSavedLocally(false);
-
         Alert.alert("Foto tomada", "Foto guardada exitosamente");
       } catch (error) {
         console.error("Error tomando foto:", error);
@@ -291,18 +257,24 @@ export default function PcForm() {
     }
   };
 
-  // ✅ FUNCIÓN PARA CAMBIAR TIPO DE CÁMARA
   const toggleCameraType = () => {
-    setCameraType((current) => (current === "back" ? "front" : "back"));
+    setCameraType((prev) => (prev === "back" ? "front" : "back"));
   };
 
-  // ✅ REGISTRAR EQUIPO CON GUARDADO AUTOMÁTICO
+  const limpiarImagenTemporal = async (uri) => {
+    if (uri && uri.startsWith("file://")) {
+      try {
+        const fileInfo = await FileSystem.getInfoAsync(uri);
+        if (fileInfo.exists) await FileSystem.deleteAsync(uri);
+      } catch (error) {}
+    }
+  };
+
   const handleSubmit = async () => {
     if (!formData.serial.trim()) {
       Alert.alert("Error", "El número de serie es requerido");
       return;
     }
-
     if (isSaving) return;
     setIsSaving(true);
 
@@ -310,57 +282,48 @@ export default function PcForm() {
     let localImageUri = null;
 
     try {
-      // 1. Si hay imagen y está activado el guardado local, guardar primero
       if (formData.imagen && saveImageLocally) {
         const saveResult = await saveImageToDevice(formData.imagen, serial);
-
-        if (saveResult.success) {
-          localImageUri = saveResult.uri;
-        } else if (!saveResult.skipped) {
-          // Mostrar alerta solo si no fue por permiso denegado
-          if (saveResult.error?.includes("Permiso")) {
-            Alert.alert(
-              "Permiso denegado",
-              "No se pudo guardar la imagen en la galería. Verifica los permisos de la app.",
-              [{ text: "OK" }],
-            );
-          }
-        }
+        if (saveResult.success) localImageUri = saveResult.uri;
       }
 
-      // 2. Preparar datos para Firebase
       const equipmentData = {
         serial: serial,
-        estado: formData.notas,
-        observaciones: formData.observaciones.trim(),
+        perfil: formData.perfil,
+        ubicacion: formData.ubicacion,
+        estado: estadoMap[formData.estado] || formData.estado,
+        esquema: formData.esquema,
+        observaciones: formData.observaciones,
+        nota: formData.nota,
         imagenUrl: formData.imagen,
         tipo: "computadora",
         createdAt: new Date().toISOString(),
         localImageUri: localImageUri,
-        ubicacion: formData.ubicacion,
       };
 
-      // 3. Crear equipo en Firebase
       const result = await createEquipment(inventoryId, equipmentData);
 
       if (result.success) {
-        if (formData.imagen) {
-          await limpiarImagenTemporal(formData.imagen);
+        if (formData.imagen && formData.imagen.startsWith("file://")) {
+          try {
+            await FileSystem.deleteAsync(formData.imagen);
+            console.log("🧹 Imagen temporal eliminada del caché");
+          } catch (e) {
+            console.log("No se pudo eliminar imagen temporal");
+          }
         }
-        if (formData.ubicacion) {
+        if (formData.ubicacion)
           await UbicacionService.guardarUbicacion(formData.ubicacion);
-        }
-        // Mensaje de éxito personalizado
+
         let successMessage = "✅ Equipo registrado correctamente";
-        if (localImageUri) {
+        if (localImageUri)
           successMessage =
             "✅ Equipo registrado\n📸 Imagen guardada en tu galería";
-        } else if (formData.imagen && saveImageLocally) {
+        else if (formData.imagen && saveImageLocally)
           successMessage = "✅ Imagen guardada en la galería";
-        } else if (formData.imagen) {
+        else if (formData.imagen)
           successMessage =
             "✅ Equipo registrado\n📸 Imagen guardada en la nube";
-        }
 
         Alert.alert("¡Éxito!", successMessage, [
           {
@@ -368,30 +331,28 @@ export default function PcForm() {
             onPress: () => {
               setFormData({
                 serial: "",
-                notas: "nuevo",
-                imagen: null,
-                observaciones: "",
+                perfil: "Standard",
                 ubicacion: "",
+                estado: "Nuevo",
+                esquema: "Activo Fijo",
+                observaciones: "",
+                nota: "",
+                imagen: null,
               });
               setImagePreview(null);
               setImageSavedLocally(false);
             },
           },
-          {
-            text: "Volver a detalles",
-            onPress: () => router.back(),
-          },
+          { text: "Volver a detalles", onPress: () => router.back() },
         ]);
       } else {
-        // Mensaje específico para serial duplicado
-        if (result.code === "DUPLICATE_SERIAL") {
-          Alert.alert("⚠️ Serial Duplicado", result.error, [{ text: "OK" }]);
-        } else {
+        if (result.code === "DUPLICATE_SERIAL")
+          Alert.alert("⚠️ Serial Duplicado", result.error);
+        else
           Alert.alert(
             "Error",
             result.error || "No se pudo registrar el equipo",
           );
-        }
       }
     } catch (error) {
       console.error("Error en handleSubmit:", error);
@@ -402,20 +363,11 @@ export default function PcForm() {
   };
 
   const regionOfInterest = useMemo(() => {
-    // Marco más ancho (85% de la pantalla) y más bajo (25% de la pantalla)
     const frameWidth = 0.85;
     const frameHeight = 0.35;
-
-    // Centrar el marco
-    const offsetX = (1 - frameWidth) / 2; // 0.075
-    const offsetY = (1 - frameHeight) / 2; // 0.375
-
-    return {
-      x: offsetX,
-      y: offsetY,
-      width: frameWidth,
-      height: frameHeight,
-    };
+    const offsetX = (1 - frameWidth) / 2;
+    const offsetY = (1 - frameHeight) / 2;
+    return { x: offsetX, y: offsetY, width: frameWidth, height: frameHeight };
   }, []);
 
   const [scanAnimation] = useState(new Animated.Value(0));
@@ -423,7 +375,6 @@ export default function PcForm() {
   useEffect(() => {
     let animation;
     if (!scanned && showScanner) {
-      // 👈 Solo cuando el scanner está visible
       animation = Animated.loop(
         Animated.sequence([
           Animated.timing(scanAnimation, {
@@ -440,66 +391,16 @@ export default function PcForm() {
       ).start();
     }
     return () => {
-      if (animation) {
-        animation.stop(); // 👈 Detener animación al cerrar
-      }
+      if (animation) animation.stop();
     };
   }, [scanned, showScanner]);
 
-  // Función para limpiar imagen temporal
-  const limpiarImagenTemporal = async (uri) => {
-    if (uri && uri.startsWith("file://")) {
-      try {
-        const fileInfo = await FileSystem.getInfoAsync(uri);
-        if (fileInfo.exists) {
-          await FileSystem.deleteAsync(uri);
-        }
-      } catch (error) {}
-    }
-  };
-
-  // Función para resetear completamente el formulario
-  const resetFormularioCompleto = async () => {
-    // Limpiar imagen temporal actual
-    if (formData.imagen) {
-      await limpiarImagenTemporal(formData.imagen);
-    }
-    if (imagePreview) {
-      await limpiarImagenTemporal(imagePreview);
-    }
-
-    // Resetear estados
-    setFormData({
-      serial: "",
-      notas: "nuevo",
-      imagen: null,
-      observaciones: "",
-    });
-    setImagePreview(null);
-    setImageSavedLocally(false);
-
-    // Forzar garbage collection si está disponible
-    if (global.gc) {
-      setTimeout(() => global.gc(), 100);
-    }
-  };
-
   useEffect(() => {
     return () => {
-      // Limpiar imágenes temporales al salir del componente
-      if (formData.imagen) {
-        limpiarImagenTemporal(formData.imagen);
-      }
-      if (imagePreview) {
-        limpiarImagenTemporal(imagePreview);
-      }
-      // Liberar referencias de cámara
-      if (scannerCameraRef.current) {
-        scannerCameraRef.current = null;
-      }
-      if (photoCameraRef.current) {
-        photoCameraRef.current = null;
-      }
+      if (formData.imagen) limpiarImagenTemporal(formData.imagen);
+      if (imagePreview) limpiarImagenTemporal(imagePreview);
+      if (scannerCameraRef.current) scannerCameraRef.current = null;
+      if (photoCameraRef.current) photoCameraRef.current = null;
     };
   }, []);
 
@@ -510,7 +411,6 @@ export default function PcForm() {
         showsVerticalScrollIndicator={false}
       >
         <View style={formEquipmentStyle.formContainer}>
-          {/* TÍTULO */}
           <View style={formEquipmentStyle.header}>
             <Ionicons
               name="hardware-chip-outline"
@@ -523,7 +423,7 @@ export default function PcForm() {
             </Text>
           </View>
 
-          {/* 👈 SECCIÓN DE GUARDADO AUTOMÁTICO */}
+          {/* Guardado automático en galería */}
           <View style={formEquipmentStyle.section}>
             <View style={formEquipmentStyle.saveLocalContainer}>
               <View style={{ flex: 1 }}>
@@ -548,18 +448,12 @@ export default function PcForm() {
             )}
           </View>
 
-          {/* SECCIÓN 1: NÚMERO DE SERIE CON SCANNER */}
+          {/* 1. Número de serie */}
           <View style={formEquipmentStyle.section}>
             <Text style={formEquipmentStyle.sectionTitle}>
               🔢 Número de Serie *
             </Text>
-
             <View style={formEquipmentStyle.inputGroup}>
-              <Text style={formEquipmentStyle.label}>
-                Ingresa el número de serie del equipo:
-              </Text>
-
-              {/* INPUT CON BOTÓN DE SCANNER */}
               <View style={formEquipmentStyle.serialInputContainer}>
                 <TextInput
                   style={[
@@ -567,7 +461,9 @@ export default function PcForm() {
                     formEquipmentStyle.serialInput,
                   ]}
                   value={formData.serial}
-                  onChangeText={(text) => handleInputChange("serial", text)}
+                  onChangeText={(text) =>
+                    setFormData((prev) => ({ ...prev, serial: text }))
+                  }
                   placeholder="Ej: SN123456789ABC"
                   placeholderTextColor="#999"
                   editable={!loading && !isSaving}
@@ -582,8 +478,6 @@ export default function PcForm() {
                   <Ionicons name="barcode-outline" size={24} color="#fff" />
                 </TouchableOpacity>
               </View>
-
-              {/* BOTÓN DE SCANNER COMPLETO */}
               <TouchableOpacity
                 style={formEquipmentStyle.scannerFullButton}
                 onPress={openScanner}
@@ -599,24 +493,39 @@ export default function PcForm() {
                   ESCANEAR CÓDIGO DE BARRAS
                 </Text>
               </TouchableOpacity>
-
               <Text style={formEquipmentStyle.helperText}>
                 Este campo es obligatorio. Usa mayúsculas o escanea el código.
               </Text>
             </View>
           </View>
 
-          {/* SECCIÓN: UBICACIÓN FÍSICA (NUEVA) */}
+          {/* 2. Perfil */}
+          <View style={formEquipmentStyle.section}>
+            <Text style={formEquipmentStyle.sectionTitle}>📌 Perfil</Text>
+            <View style={formEquipmentStyle.inputGroup}>
+              <View style={formEquipmentStyle.pickerContainer}>
+                <Picker
+                  selectedValue={formData.perfil}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, perfil: value }))
+                  }
+                  style={formEquipmentStyle.picker}
+                  enabled={!loading && !isSaving}
+                >
+                  {perfiles.map((perfil) => (
+                    <Picker.Item key={perfil} label={perfil} value={perfil} />
+                  ))}
+                </Picker>
+              </View>
+            </View>
+          </View>
+
+          {/* 3. Ubicación física */}
           <View style={formEquipmentStyle.section}>
             <Text style={formEquipmentStyle.sectionTitle}>
               📍 Ubicación Física
             </Text>
-
             <View style={formEquipmentStyle.inputGroup}>
-              <Text style={formEquipmentStyle.label}>
-                Ubicación específica (ej: Planta baja, oficina 101)
-              </Text>
-
               <TextInput
                 style={formEquipmentStyle.input}
                 value={formData.ubicacion}
@@ -625,8 +534,6 @@ export default function PcForm() {
                 placeholderTextColor="#999"
                 editable={!loading && !isSaving}
               />
-
-              {/* Sugerencias */}
               {mostrarSugerencias && sugerencias.length > 0 && (
                 <View style={formEquipmentStyle.sugerenciasContainer}>
                   {sugerencias.map((item, index) => (
@@ -647,50 +554,112 @@ export default function PcForm() {
                   ))}
                 </View>
               )}
-
               <Text style={formEquipmentStyle.helperText}>
                 Especifica el lugar exacto donde se encuentra el equipo
               </Text>
             </View>
           </View>
 
-          {/* SECCIÓN 2: ESTADO DEL EQUIPO */}
+          {/* 4. Estado del equipo */}
           <View style={formEquipmentStyle.section}>
             <Text style={formEquipmentStyle.sectionTitle}>
               📝 Estado del Equipo
             </Text>
-
             <View style={formEquipmentStyle.inputGroup}>
-              <Text style={formEquipmentStyle.label}>
-                Selecciona el estado:
-              </Text>
               <View style={formEquipmentStyle.pickerContainer}>
                 <Picker
-                  selectedValue={formData.notas}
-                  onValueChange={(value) => handleInputChange("notas", value)}
+                  selectedValue={formData.estado}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, estado: value }))
+                  }
                   style={formEquipmentStyle.picker}
                   enabled={!loading && !isSaving}
                 >
-                  <Picker.Item label="Equipo Nuevo" value="nuevo" />
-                  <Picker.Item label="Equipo Usado" value="usado" />
-                  <Picker.Item label="En Reparación" value="reparacion" />
-                  <Picker.Item label="Dañado" value="danado" />
+                  {estados.map((estado) => (
+                    <Picker.Item key={estado} label={estado} value={estado} />
+                  ))}
                 </Picker>
               </View>
             </View>
           </View>
 
-          {/* SECCIÓN 3: IMAGEN */}
+          {/* 5. Esquema */}
+          <View style={formEquipmentStyle.section}>
+            <Text style={formEquipmentStyle.sectionTitle}>📄 Esquema</Text>
+            <View style={formEquipmentStyle.inputGroup}>
+              <View style={formEquipmentStyle.pickerContainer}>
+                <Picker
+                  selectedValue={formData.esquema}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, esquema: value }))
+                  }
+                  style={formEquipmentStyle.picker}
+                  enabled={!loading && !isSaving}
+                >
+                  {esquemas.map((esquema) => (
+                    <Picker.Item
+                      key={esquema}
+                      label={esquema}
+                      value={esquema}
+                    />
+                  ))}
+                </Picker>
+              </View>
+            </View>
+          </View>
+
+          {/* 6. Observaciones (picker) */}
+          <View style={formEquipmentStyle.section}>
+            <Text style={formEquipmentStyle.sectionTitle}>
+              📋 Observaciones
+            </Text>
+            <View style={formEquipmentStyle.inputGroup}>
+              <View style={formEquipmentStyle.pickerContainer}>
+                <Picker
+                  selectedValue={formData.observaciones}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, observaciones: value }))
+                  }
+                  style={formEquipmentStyle.picker}
+                  enabled={!loading && !isSaving}
+                >
+                  <Picker.Item label="Selecciona una observación" value="" />
+                  {observacionesOpciones.map((obs) => (
+                    <Picker.Item key={obs} label={obs} value={obs} />
+                  ))}
+                </Picker>
+              </View>
+            </View>
+          </View>
+
+          {/* 7. Nota (texto libre) */}
+          <View style={formEquipmentStyle.section}>
+            <Text style={formEquipmentStyle.sectionTitle}>📝 Nota</Text>
+            <View style={formEquipmentStyle.inputGroup}>
+              <TextInput
+                style={[formEquipmentStyle.input, formEquipmentStyle.textArea]}
+                value={formData.nota}
+                onChangeText={(text) =>
+                  setFormData((prev) => ({ ...prev, nota: text }))
+                }
+                placeholder="Nota adicional (opcional)"
+                placeholderTextColor="#999"
+                editable={!loading && !isSaving}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+            </View>
+          </View>
+
+          {/* 8. Imagen */}
           <View style={formEquipmentStyle.section}>
             <Text style={formEquipmentStyle.sectionTitle}>
               📸 Fotografía del Equipo
             </Text>
-
             <Text style={formEquipmentStyle.label}>
               Sube una foto del equipo:
             </Text>
-
-            {/* BOTONES DE IMAGEN */}
             <View style={formEquipmentStyle.imageButtonsContainer}>
               <TouchableOpacity
                 style={[
@@ -703,7 +672,6 @@ export default function PcForm() {
                 <Ionicons name="image-outline" size={24} color="#fff" />
                 <Text style={formEquipmentStyle.imageButtonText}>Galería</Text>
               </TouchableOpacity>
-
               <TouchableOpacity
                 style={[
                   formEquipmentStyle.imageButton,
@@ -716,8 +684,6 @@ export default function PcForm() {
                 <Text style={formEquipmentStyle.imageButtonText}>Cámara</Text>
               </TouchableOpacity>
             </View>
-
-            {/* PREVIEW DE LA IMAGEN */}
             {imagePreview ? (
               <View style={formEquipmentStyle.imagePreviewContainer}>
                 <Text style={formEquipmentStyle.label}>Vista previa:</Text>
@@ -730,7 +696,7 @@ export default function PcForm() {
                   style={formEquipmentStyle.removeImageButton}
                   onPress={() => {
                     setImagePreview(null);
-                    handleInputChange("imagen", null);
+                    setFormData((prev) => ({ ...prev, imagen: null }));
                     setImageSavedLocally(false);
                   }}
                   disabled={loading || isSaving}
@@ -758,35 +724,7 @@ export default function PcForm() {
             )}
           </View>
 
-          {/* SECCIÓN 4: OBSERVACIONES */}
-          <View style={formEquipmentStyle.section}>
-            <Text style={formEquipmentStyle.sectionTitle}>
-              📋 Observaciones Adicionales
-            </Text>
-
-            <View style={formEquipmentStyle.inputGroup}>
-              <Text style={formEquipmentStyle.label}>Notas o comentarios:</Text>
-              <TextInput
-                style={[formEquipmentStyle.input, formEquipmentStyle.textArea]}
-                value={formData.observaciones}
-                onChangeText={(text) =>
-                  handleInputChange("observaciones", text)
-                }
-                placeholder="Ej: Equipo con detalles en la carcasa, falta cable de poder, etc."
-                placeholderTextColor="#999"
-                editable={!loading && !isSaving}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-                maxLength={500}
-              />
-              <Text style={formEquipmentStyle.charCount}>
-                {formData.observaciones.length}/500 caracteres
-              </Text>
-            </View>
-          </View>
-
-          {/* BOTONES DE ACCIÓN */}
+          {/* Botones de acción */}
           <View style={formEquipmentStyle.actionButtons}>
             <TouchableOpacity
               style={[
@@ -799,7 +737,6 @@ export default function PcForm() {
               <Ionicons name="arrow-back" size={20} color={COLORS.text} />
               <Text style={formEquipmentStyle.cancelButtonText}> Cancelar</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={[
                 formEquipmentStyle.button,
@@ -815,6 +752,7 @@ export default function PcForm() {
                 <>
                   <Ionicons name="save-outline" size={20} color="#fff" />
                   <Text style={formEquipmentStyle.submitButtonText}>
+                    {" "}
                     Registrar Equipo
                   </Text>
                 </>

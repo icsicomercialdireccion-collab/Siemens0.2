@@ -1,7 +1,7 @@
-// app/(details)/[id].jsx - VERSIÓN CON TEMA ICSI
+// app/(details)/[id].jsx - VERSIÓN CON BOTÓN FLOTANTE
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,7 @@ import {
   Modal,
   RefreshControl,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -32,6 +33,15 @@ import { Directory, File, Paths } from "expo-file-system";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function DetailsScreen() {
+  const flatListRef = useRef(null);
+
+  // Función para subir arriba
+  const scrollToTop = () => {
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+  };
+
+  const [searchText, setSearchText] = useState("");
+  const [filteredEquipments, setFilteredEquipments] = useState([]);
   const { id } = useLocalSearchParams();
   const {
     equipments,
@@ -58,9 +68,26 @@ export default function DetailsScreen() {
       getEquipmentsByInventory(id);
     }
     return () => {
-      clearEquipments(); // Esta función debe existir en tu contexto
+      clearEquipments();
     };
   }, [id]);
+
+  useEffect(() => {
+    if (searchText.trim() === "") {
+      setFilteredEquipments(equipments);
+    } else {
+      const lowerText = searchText.toLowerCase();
+      const filtered = equipments.filter((equipment) => {
+        return (
+          equipment.serial?.toLowerCase().includes(lowerText) ||
+          equipment.perfil?.toLowerCase().includes(lowerText) ||
+          equipment.ubicacion?.toLowerCase().includes(lowerText) ||
+          equipment.esquema?.toLowerCase().includes(lowerText)
+        );
+      });
+      setFilteredEquipments(filtered);
+    }
+  }, [searchText, equipments]);
 
   const loadInventory = async () => {
     try {
@@ -232,13 +259,12 @@ export default function DetailsScreen() {
     return (
       <View style={detailStyle.headerContainer}>
         <LinearGradient
-          colors={[COLORS.primary, "#C8102E"]} // Rojo ICSI
+          colors={[COLORS.primary, "#C8102E"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={detailStyle.gradientCard}
         >
           <View style={detailStyle.headerContent}>
-            {/* Título y botón de exportar */}
             <View style={detailStyle.headerTop}>
               <View style={detailStyle.titleWrapper}>
                 <Ionicons name="cube-outline" size={28} color="#FFFFFF" />
@@ -271,10 +297,8 @@ export default function DetailsScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Línea divisoria */}
             <View style={detailStyle.headerDivider} />
 
-            {/* Información en 2 filas (eliminadas estadísticas) */}
             <View style={detailStyle.infoContainer}>
               {inventory.ubicacion && (
                 <View style={detailStyle.infoRow}>
@@ -290,7 +314,6 @@ export default function DetailsScreen() {
                 </View>
               )}
 
-              {/* Fila 1: Ubicación y Estado */}
               <View style={detailStyle.infoRow}>
                 <View style={detailStyle.infoItem}>
                   <Ionicons name="location-outline" size={18} color="#FFD6D6" />
@@ -317,7 +340,6 @@ export default function DetailsScreen() {
                 </View>
               </View>
 
-              {/* Fila 2: Creado y Total Equipos */}
               <View style={detailStyle.infoRow}>
                 <View style={detailStyle.infoItem}>
                   <Ionicons name="calendar-outline" size={18} color="#FFD6D6" />
@@ -357,16 +379,39 @@ export default function DetailsScreen() {
   // ================== RENDER ITEM PARA FLATLIST ==================
   const renderContent = () => (
     <View style={detailStyle.equipmentSection}>
+      <View style={detailStyle.searchContainer}>
+        <View style={detailStyle.searchInputContainer}>
+          <Ionicons name="search-outline" size={20} color="#999" />
+          <TextInput
+            style={detailStyle.searchInput}
+            placeholder="Buscar por serie, perfil, ubicación o esquema..."
+            placeholderTextColor="#999"
+            value={searchText}
+            onChangeText={setSearchText}
+            clearButtonMode="while-editing"
+          />
+          {searchText !== "" && (
+            <TouchableOpacity onPress={() => setSearchText("")}>
+              <Ionicons name="close-circle" size={20} color="#999" />
+            </TouchableOpacity>
+          )}
+        </View>
+        {searchText !== "" && (
+          <Text style={detailStyle.searchResultText}>
+            {filteredEquipments.length} de {equipments.length} equipos
+          </Text>
+        )}
+      </View>
       <View style={detailStyle.sectionHeader}>
         <Text style={detailStyle.sectionTitle}>Equipos Registrados</Text>
         <Text style={detailStyle.sectionSubtitle}>
-          {equipments.length} {equipments.length === 1 ? "equipo" : "equipos"}{" "}
-          en total
+          {filteredEquipments.length}{" "}
+          {filteredEquipments.length === 1 ? "equipo" : "equipos"} en total
         </Text>
       </View>
 
       <EquipmentList
-        equipments={equipments}
+        equipments={filteredEquipments}
         loading={equipmentsLoading}
         inventoryId={id}
         onRefresh={onRefresh}
@@ -374,17 +419,14 @@ export default function DetailsScreen() {
         onDeleteEquipment={handleDeleteEquipment}
       />
 
-      {/* Espacio al final */}
       <View style={{ height: 40 }} />
     </View>
   );
 
   // ================== MODAL DE EXPORTACIÓN ==================
-
   const ExportModal = () => {
     const [isSharing, setIsSharing] = useState(false);
 
-    // Función para descargar y compartir usando la NUEVA API
     const handleShare = async () => {
       if (!lastExportUrl) {
         Alert.alert("Error", "No hay archivo para compartir");
@@ -394,13 +436,11 @@ export default function DetailsScreen() {
       setIsSharing(true);
 
       try {
-        // 1. Crear el directorio temporal si no existe
         const tempDir = new Directory(Paths.cache, "temp");
         if (!tempDir.exists) {
           tempDir.create();
         }
 
-        // 2. Generar nombre de archivo con la información del inventario
         const mes = inventory?.mes || "inventario";
         const estado = inventory?.estado || "ubicacion";
         const localidad = inventory?.localidad || "localidad";
@@ -412,10 +452,8 @@ export default function DetailsScreen() {
           })
           .replace(/\//g, "-");
 
-        // Formato: "Enero_Jalisco_Guadalajara_15-04-2026.xlsx"
         let nombreArchivo = `${mes}_${estado}_${localidad}_${fecha}.xlsx`;
 
-        // Limpiar caracteres especiales (tildes, ñ, etc.)
         nombreArchivo = nombreArchivo
           .replace(/[ñÑ]/g, (match) => (match === "ñ" ? "n" : "N"))
           .replace(/[áéíóú]/g, (match) => {
@@ -428,10 +466,7 @@ export default function DetailsScreen() {
           })
           .replace(/[^a-zA-Z0-9_.-]/g, "_");
 
-        // 3. Definir el archivo de destino
         const tempFile = new File(tempDir, nombreArchivo);
-
-        // 4. Descargar el archivo
         const downloadedFile = await File.downloadFileAsync(
           lastExportUrl,
           tempFile,
@@ -440,14 +475,12 @@ export default function DetailsScreen() {
           },
         );
 
-        // 5. Compartir el archivo
         await Sharing.shareAsync(downloadedFile.uri, {
           dialogTitle: `Compartir inventario ${mes}`,
           mimeType:
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         });
 
-        // 6. Limpiar archivo temporal
         await tempFile.delete();
       } catch (error) {
         console.error("Error al compartir:", error);
@@ -496,7 +529,6 @@ export default function DetailsScreen() {
                   ¡Inventario exportado exitosamente!
                 </Text>
 
-                {/* Botón Descargar */}
                 <TouchableOpacity
                   style={detailStyle.modalButton}
                   onPress={() => {
@@ -512,7 +544,6 @@ export default function DetailsScreen() {
                   </Text>
                 </TouchableOpacity>
 
-                {/* Botón Compartir */}
                 <TouchableOpacity
                   style={[
                     detailStyle.modalButton,
@@ -531,7 +562,6 @@ export default function DetailsScreen() {
                   )}
                 </TouchableOpacity>
 
-                {/* Botón Cerrar */}
                 <TouchableOpacity
                   style={[detailStyle.modalButtonSecondary, { marginTop: 10 }]}
                   onPress={() => setShowExportModal(false)}
@@ -577,6 +607,7 @@ export default function DetailsScreen() {
   return (
     <View style={detailStyle.container}>
       <FlatList
+        ref={flatListRef}
         data={[{ key: "content" }]}
         renderItem={renderContent}
         ListHeaderComponent={<ProfessionalHeader />}
@@ -589,15 +620,22 @@ export default function DetailsScreen() {
             tintColor={COLORS.primary}
           />
         }
-        contentContainerStyle={{
-          paddingBottom: 40,
-        }}
+        contentContainerStyle={{ paddingBottom: 40 }}
         keyboardShouldPersistTaps="handled"
       />
 
       {/* ============== BOTONES FLOTANTES ==============*/}
       <View style={detailStyle.fabContainer}>
-        {/* Botón flotante para AGREGAR equipo (IZQUIERDA) */}
+        {/* Botón flotante para SUBIR ARRIBA (arriba a la derecha) */}
+        <TouchableOpacity
+          style={[detailStyle.fab, detailStyle.fabTop]}
+          onPress={scrollToTop}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="arrow-up-outline" size={28} color="#fff" />
+        </TouchableOpacity>
+
+        {/* Botón flotante para AGREGAR equipo (izquierda) */}
         <TouchableOpacity
           style={[detailStyle.fab, detailStyle.fabAdd, detailStyle.fabLeft]}
           onPress={() => router.push(`/(forms)/pcForm?inventoryId=${id}`)}
@@ -606,7 +644,7 @@ export default function DetailsScreen() {
           <Ionicons name="add" size={28} color="#fff" />
         </TouchableOpacity>
 
-        {/* Botón flotante para EXPORTAR (DERECHA) */}
+        {/* Botón flotante para EXPORTAR (derecha) */}
         {equipments.length > 0 && (
           <TouchableOpacity
             style={[
