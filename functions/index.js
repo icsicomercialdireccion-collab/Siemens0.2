@@ -1,5 +1,4 @@
-// functions/index.js - VERSIÓN COMPLETA CON PLANTILLA EXCEL
-
+// functions/index.js - VERSIÓN COMPLETA CON PLANTILLA EXCEL (ACTUALIZADA)
 const { onRequest } = require("firebase-functions/v2/https");
 const { logger } = require("firebase-functions/logger");
 const admin = require("firebase-admin");
@@ -24,17 +23,14 @@ async function loadTemplateFromStorage() {
     const bucket = admin.storage().bucket();
     const templateFile = bucket.file(TEMPLATE_PATH);
 
-    // Verificar si la plantilla existe
     const [exists] = await templateFile.exists();
     if (!exists) {
       throw new Error(`Plantilla no encontrada en: ${TEMPLATE_PATH}`);
     }
 
-    // Descargar la plantilla
     const [buffer] = await templateFile.download();
     logger.info(`✅ Plantilla cargada, tamaño: ${buffer.length} bytes`);
 
-    // Cargar con ExcelJS
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer);
 
@@ -79,7 +75,6 @@ exports.debugExport = onRequest(
       const bucket = admin.storage().bucket();
       const bucketName = bucket.name;
 
-      // Verificar si la plantilla existe
       const templateFile = bucket.file(TEMPLATE_PATH);
       const [templateExists] = await templateFile.exists();
 
@@ -131,7 +126,7 @@ exports.exportInventory = onRequest(
   {
     cors: true,
     timeoutSeconds: 540,
-    memory: "1GiB",
+    memory: "2GiB",
     minInstances: 0,
     maxInstances: 10,
   },
@@ -177,14 +172,6 @@ exports.exportInventory = onRequest(
         `✅ Inventario encontrado: ${inventarioData.mes} ${inventarioData.anio}`,
       );
 
-      // 👈 UBICACIÓN FÍSICA: usar el campo 'ubicacion' del inventario
-      const ubicacionFisica = inventarioData.ubicacion.trim();
-
-      // Si está vacío, poner un valor por defecto
-      const ubicacionFinal = ubicacionFisica || "No especificada";
-
-      logger.info(`📍 Ubicación física: ${ubicacionFinal}`);
-
       // 3. OBTENER EQUIPOS
       logger.info(`📊 Obteniendo equipos de la subcolección...`);
       const equiposSnapshot = await inventarioRef.collection("equipos").get();
@@ -198,7 +185,6 @@ exports.exportInventory = onRequest(
           message: "No hay equipos para exportar",
           data: {
             inventario: `${inventarioData.mes} ${inventarioData.anio}`,
-            ubicacion: ubicacionFinal,
           },
         });
       }
@@ -215,6 +201,8 @@ exports.exportInventory = onRequest(
       }
 
       logger.info("✅ Plantilla cargada correctamente");
+
+      // ========== DATOS FIJOS ==========
       const fecha = new Date();
       const dia = fecha.getDate().toString().padStart(2, "0");
       const meses = [
@@ -235,58 +223,62 @@ exports.exportInventory = onRequest(
       const año = fecha.getFullYear();
       const fechaActualizacion = `${dia} de ${mes} del ${año}`;
 
-      worksheet.getCell("C3").value = fechaActualizacion;
-      logger.info(`📅 Fecha actualización en C3: ${fechaActualizacion}`);
+      worksheet.getCell("C2").value = fechaActualizacion;
+      logger.info(`📅 Fecha actualización en M2: ${fechaActualizacion}`);
 
-      // 📍 Estado en C7
-      const estadoInventario = inventarioData.estado || "";
-      worksheet.getCell("C7").value = estadoInventario;
-      logger.info(`📍 Estado en C7: ${estadoInventario}`);
+      worksheet.getCell("C5").value = inventarioData.estado || "";
+      logger.info(`📍 Estado en M5: ${inventarioData.estado || ""}`);
 
-      // 🏢 Localidad en C8
-      const localidadInventario = inventarioData.localidad || "No especificada";
-      worksheet.getCell("C8").value = localidadInventario;
-      logger.info(`🏢 Localidad en C8: ${localidadInventario}`);
+      worksheet.getCell("C6").value = inventarioData.localidad || "";
+      logger.info(`🏢 Localidad en M6: ${inventarioData.localidad || ""}`);
 
-      // 5. PROCESAR EQUIPOS - COMENZAR EN FILA 10
+      // ========== PROCESAR EQUIPOS (DESDE FILA 2) ==========
       logger.info(`🖼️ Procesando ${totalEquipos} equipos...`);
-      let currentRow = 10;
+      let currentRow = 13;
       let imagenesProcesadas = 0;
       let imagenesFallidas = 0;
 
+      // Mapeo de estados (9 opciones)
+      const estadoMap = {
+        baja: "Baja",
+        danado_destruccion: "Dañado Destrucción",
+        donacion: "Donación",
+        reparacion: "En Reparación",
+        nuevo: "Nuevo",
+        renovado: "Renovado",
+        venta: "Venta",
+        usado_garantia: "Usado con Garantía",
+        usado_sin_garantia: "Usado Sin Garantía",
+      };
+
       for (const doc of equiposSnapshot.docs) {
         const equipo = doc.data();
+
+        // Leer todos los campos
         const serial = equipo.serial || "N/A";
-        const observaciones = equipo.observaciones;
+        const perfil = equipo.perfil || "Standard";
+        const ubicacion = equipo.ubicacion || "";
         const estadoOriginal = equipo.estado;
+        const esquema = equipo.esquema || "Activo Fijo";
+        const observaciones = equipo.observaciones || "";
+        const nota = equipo.nota || "";
+        const imagenUrl = equipo.imagenUrl || null;
 
-        // 👈 MAPEO DE ESTADOS (más elegante)
-        const estadoMap = {
-          nuevo: "Equipo nuevo",
-          usado: "Equipo usado",
-          danado: "Equipo dañado",
-          reparacion: "Equipo reparado",
-        };
-
-        const ubicacionEquipo = equipo.ubicacion || "";
-
+        // Transformar estado
         const estadoTransformado =
           estadoMap[estadoOriginal] || estadoOriginal || "Sin especificar";
 
-        // 👈 COLUMNA B (índice 2) = Número de serie
+        // Escribir en columnas B a I
         worksheet.getCell(`B${currentRow}`).value = serial;
+        worksheet.getCell(`C${currentRow}`).value = perfil;
+        worksheet.getCell(`D${currentRow}`).value = ubicacion;
+        worksheet.getCell(`E${currentRow}`).value = estadoTransformado;
+        worksheet.getCell(`F${currentRow}`).value = esquema;
+        worksheet.getCell(`G${currentRow}`).value = observaciones;
+        worksheet.getCell(`H${currentRow}`).value = nota;
 
-        // 👈 COLUMNA D (índice 4) = Ubicación física (del inventario)
-        worksheet.getCell(`D${currentRow}`).value = ubicacionEquipo;
-
-        // 👈 COLUMNA F (índice 6) = Notas
-        worksheet.getCell(`F${currentRow}`).value = estadoTransformado;
-
-        worksheet.getCell(`H${currentRow}`).value = observaciones;
-
-        // 👈 COLUMNA G (índice 7) = Imagen
-        const imagenUrl = equipo.imagenUrl || equipo.fotoUrl || null;
-
+        // Imagen en columna I
+        // Imagen en columna I (mejorada)
         if (imagenUrl) {
           try {
             const imageResponse = await axios.get(imagenUrl, {
@@ -295,15 +287,13 @@ exports.exportInventory = onRequest(
             });
 
             if (imageResponse.data) {
-              // Ajustamos Sharp a un tamaño ligeramente menor (ej. 260x340)
-              // para dejar un margen interno natural.
               const miniaturaBuffer = await sharp(imageResponse.data)
-                .resize(200, 200, {
-                  fit: "cover", // Mantiene la proporción de la foto original
+                .resize(320, 240, {
+                  fit: "cover",
                   position: "center",
-                  background: { r: 255, g: 255, b: 255 }, // Trransparente si es PNG
+                  background: { r: 255, g: 255, b: 255 },
                 })
-                .jpeg({ quality: 70 })
+                .png({ quality: 85, compressionLevel: 6 })
                 .toBuffer();
 
               const imageId = workbook.addImage({
@@ -311,43 +301,42 @@ exports.exportInventory = onRequest(
                 extension: "png",
               });
 
-              // 3. Posicionamiento en Columna G (Índice 6)
-              // nativeColOff y RowOff en 10 para centrar la imagen dentro de esos 280x360px
               worksheet.addImage(imageId, {
                 tl: {
-                  col: 6,
+                  col: 8,
                   row: currentRow - 1,
-                  nativeColOff: 10,
-                  nativeRowOff: 10,
+                  nativeColOff: 5,
+                  nativeRowOff: 5,
                 },
                 br: {
-                  col: 7,
+                  col: 9,
                   row: currentRow,
-                  nativeColOff: -10,
-                  nativeRowOff: -10,
+                  nativeColOff: -5,
+                  nativeRowOff: -5,
                 },
-                editAs: "oneCell", // Bloquea la imagen a la celda
+                editAs: "oneCell",
               });
 
               imagenesProcesadas++;
             }
           } catch (imgError) {
-            logger.warn(
-              `⚠️ Error en imagen fila ${currentRow}: ${imgError.message}`,
-            );
-            worksheet.getCell(`G${currentRow}`).value = "❌ No disponible";
+            imagenesFallidas++;
+            worksheet.getCell(`I${currentRow}`).value =
+              "❌ Imagen no disponible";
           }
+        } else {
+          worksheet.getCell(`I${currentRow}`).value = "📷 Sin imagen";
         }
 
         currentRow++;
 
         // Pequeña pausa cada 10 equipos
-        if ((currentRow - 10) % 10 === 0) {
+        if ((currentRow - 2) % 10 === 0) {
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
       }
 
-      const totalProcesados = currentRow - 10;
+      const totalProcesados = currentRow - 2;
       logger.info(`📊 Resumen de equipos: ${totalProcesados} procesados`);
       logger.info(
         `   Imágenes: ${imagenesProcesadas} exitosas, ${imagenesFallidas} fallidas`,
@@ -375,7 +364,6 @@ exports.exportInventory = onRequest(
         metadata: {
           inventoryId: inventoryId,
           inventoryName: `${inventarioData.mes} ${inventarioData.anio}`,
-          ubicacion: ubicacionFinal,
           totalEquipos: totalProcesados,
           imagenesProcesadas: imagenesProcesadas,
           exportDate: new Date().toISOString(),
@@ -418,7 +406,6 @@ exports.exportInventory = onRequest(
           inventario: {
             id: inventoryId,
             nombre: `${inventarioData.mes} ${inventarioData.anio}`,
-            ubicacion: ubicacionFinal,
             localidad: inventarioData.localidad,
             estado: inventarioData.estado,
           },
@@ -486,7 +473,6 @@ exports.verifyExport = onRequest(
       const db = admin.firestore();
       const bucket = admin.storage().bucket();
 
-      // 1. Verificar inventario
       const inventarioDoc = await db
         .collection("inventarios")
         .doc(inventoryId)
@@ -498,7 +484,6 @@ exports.verifyExport = onRequest(
 
       const inventarioData = inventarioDoc.data();
 
-      // 2. Buscar archivos en Storage
       const [files] = await bucket.getFiles({
         prefix: `exports/inventario_${inventarioData.mes}_${inventarioData.anio}`,
       });

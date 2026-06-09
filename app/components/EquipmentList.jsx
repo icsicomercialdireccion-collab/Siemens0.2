@@ -91,8 +91,8 @@ export default function EquipmentList({
       {/* Información del equipo */}
       <View style={ListStyle.cardBody}>
         <View style={ListStyle.infoRow}>
-          <Ionicons name="cube-outline" size={16} color="#666" />
-          <Text style={ListStyle.typeText}>{item.tipo || "computadora"}</Text>
+          <Ionicons name="options-outline" size={16} color="#666" />
+          <Text style={ListStyle.typeText}>{item.perfil || "Standard"}</Text>
         </View>
 
         {/* Mostrar ubicación si existe */}
@@ -105,11 +105,11 @@ export default function EquipmentList({
           </View>
         ) : null}
 
-        {item.observaciones ? (
+        {item.esquema ? (
           <View style={ListStyle.observationsContainer}>
             <Ionicons name="document-text-outline" size={14} color="#888" />
             <Text style={ListStyle.observationsText} numberOfLines={2}>
-              {item.observaciones}
+              {item.esquema}
             </Text>
           </View>
         ) : null}
@@ -191,6 +191,12 @@ export default function EquipmentList({
         contentContainerStyle={ListStyle.listContainer}
         refreshing={loading}
         onRefresh={onRefresh}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10} // 👈 Renderiza de a 10
+        updateCellsBatchingPeriod={50} // 👈 Controla frecuencia
+        windowSize={5} // 👈 Solo mantiene 5 pantallas en memoria
+        initialNumToRender={10} // 👈 Renderiza 10 al inicio
+        onEndReachedThreshold={0.5}
       />
 
       {/* 👈 MODAL DE CONFIRMACIÓN DE ELIMINACIÓN */}

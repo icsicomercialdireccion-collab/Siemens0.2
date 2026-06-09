@@ -277,7 +277,7 @@ const FormInventory = () => {
 
               {/* Campo Localidad */}
               <View style={formStyle.inputGroup}>
-                <Text style={formStyle.label}>Localidad *</Text>
+                <Text style={formStyle.label}>Inmueble *</Text>
                 <View style={formStyle.inputWrapper}>
                   <Ionicons
                     name="pin-outline"
@@ -290,7 +290,7 @@ const FormInventory = () => {
                       formStyle.input,
                       errors.localidad && formStyle.inputError,
                     ]}
-                    placeholder="Ciudad o municipio"
+                    placeholder="Inmueble Asistido"
                     placeholderTextColor={COLORS.textPlaceholder}
                     value={formData.localidad}
                     onChangeText={(value) => handleChange("localidad", value)}

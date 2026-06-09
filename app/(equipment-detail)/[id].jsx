@@ -1,7 +1,7 @@
 // app/(equipment-detail)/[id].jsx
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -24,11 +24,13 @@ export default function EquipmentDetailScreen() {
   const [equipment, setEquipment] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(true);
 
-  useEffect(() => {
-    if (equipmentId && inventoryId) {
-      loadEquipment();
-    }
-  }, [equipmentId, inventoryId]);
+  useFocusEffect(
+    useCallback(() => {
+      if (equipmentId && inventoryId) {
+        loadEquipment();
+      }
+    }, [equipmentId, inventoryId]),
+  );
 
   const loadEquipment = async () => {
     try {
@@ -229,10 +231,30 @@ export default function EquipmentDetailScreen() {
           </View>
 
           <View style={PcDetailStyle.infoRow}>
+            <Ionicons name="options-outline" size={20} color={COLORS.primary} />
+            <Text style={PcDetailStyle.infoLabel}>Perfil:</Text>
+            <Text style={PcDetailStyle.infoValue}>
+              {equipment.perfil || "Standard"}
+            </Text>
+          </View>
+
+          <View style={PcDetailStyle.infoRow}>
             <Ionicons name="location-sharp" size={20} color={COLORS.primary} />
             <Text style={PcDetailStyle.infoLabel}>Ubicación:</Text>
             <Text style={PcDetailStyle.infoValue}>
               {equipment.ubicacion || "No especificada"}
+            </Text>
+          </View>
+
+          <View style={PcDetailStyle.infoRow}>
+            <Ionicons
+              name="document-text-outline"
+              size={20}
+              color={COLORS.primary}
+            />
+            <Text style={PcDetailStyle.infoLabel}>Esquema:</Text>
+            <Text style={PcDetailStyle.infoValue}>
+              {equipment.esquema || "Activo Fijo"}
             </Text>
           </View>
 
@@ -273,6 +295,22 @@ export default function EquipmentDetailScreen() {
               </Text>
             </View>
           )}
+
+          {equipment.nota ? (
+            <View style={PcDetailStyle.observationsContainer}>
+              <View style={PcDetailStyle.observationsHeader}>
+                <Ionicons
+                  name="create-outline"
+                  size={20}
+                  color={COLORS.primary}
+                />
+                <Text style={PcDetailStyle.observationsTitle}>Nota:</Text>
+              </View>
+              <Text style={PcDetailStyle.observationsText}>
+                {equipment.nota}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
 

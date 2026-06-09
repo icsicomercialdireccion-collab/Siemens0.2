@@ -37,8 +37,11 @@ export default function EditEquipmentScreen() {
 
   const [formData, setFormData] = useState({
     serial: "",
+    perfil: "Standard",
     estado: "nuevo",
+    esquema: "Activo Fijo",
     observaciones: "",
+    nota: "",
     ubicacion: "",
     imagenUrl: null,
     currentImageUrl: null,
@@ -66,11 +69,14 @@ export default function EditEquipmentScreen() {
         setOriginalData(parsedData);
         setFormData({
           serial: parsedData.serial || "",
+          perfil: parsedData.perfil || "Standard",
           estado: parsedData.estado || "nuevo",
+          esquema: parsedData.esquema || "Activo Fijo",
           observaciones: parsedData.observaciones || "",
+          nota: parsedData.nota || "",
+          ubicacion: parsedData.ubicacion || "",
           imagenUrl: parsedData.imagenUrl || null,
           currentImageUrl: parsedData.imagenUrl || null,
-          ubicacion: parsedData.ubicacion || "",
         });
       } catch (error) {
         console.error("Error parsing equipment data:", error);
@@ -287,8 +293,11 @@ export default function EditEquipmentScreen() {
       // 3. Preparar datos para actualizar
       const updateData = {
         serial: serial,
+        perfil: formData.perfil,
         estado: formData.estado,
-        observaciones: formData.observaciones.trim(),
+        esquema: formData.esquema,
+        observaciones: formData.observaciones,
+        nota: formData.nota,
         ubicacion: formData.ubicacion.trim(),
       };
 
@@ -381,8 +390,11 @@ export default function EditEquipmentScreen() {
       // Preparar datos para actualizar
       const updateData = {
         serial: formData.serial.trim().toUpperCase(),
+        perfil: formData.perfil,
         estado: formData.estado,
-        observaciones: formData.observaciones.trim(),
+        esquema: formData.esquema,
+        observaciones: formData.observaciones,
+        nota: formData.nota,
         ubicacion: formData.ubicacion ? formData.ubicacion.trim() : "",
       };
 
@@ -438,8 +450,11 @@ export default function EditEquipmentScreen() {
     // Verificar si hay cambios sin guardar
     const hasChanges =
       formData.serial !== originalData?.serial ||
+      formData.perfil !== originalData?.perfil ||
       formData.estado !== originalData?.estado ||
+      formData.esquema !== originalData?.esquema ||
       formData.observaciones !== originalData?.observaciones ||
+      formData.nota !== originalData?.nota ||
       formData.ubicacion !== originalData?.ubicacion ||
       (image && image !== originalData?.imagenUrl) ||
       (!image && originalData?.imagenUrl && formData.imagenUrl === null);
@@ -592,6 +607,28 @@ export default function EditEquipmentScreen() {
               />
             </View>
 
+            {/* Perfil */}
+            <View style={FormEditStyle.inputGroup}>
+              <Text style={FormEditStyle.label}>Perfil</Text>
+              <View style={FormEditStyle.pickerContainer}>
+                <Picker
+                  selectedValue={formData.perfil}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, perfil: value })
+                  }
+                  style={FormEditStyle.picker}
+                  enabled={!isLoading}
+                >
+                  <Picker.Item label="Standard" value="Standard" />
+                  <Picker.Item label="Workstation" value="Workstation" />
+                  <Picker.Item label="Ejecutiva" value="Ejecutiva" />
+                  <Picker.Item label="Mini" value="Mini" />
+                  <Picker.Item label="Tower" value="Tower" />
+                </Picker>
+              </View>
+            </View>
+
+            {/* Ubicación específica */}
             <View style={FormEditStyle.inputGroup}>
               <Text style={FormEditStyle.label}>📍 Ubicación específica</Text>
               <TextInput
@@ -609,7 +646,7 @@ export default function EditEquipmentScreen() {
               </Text>
             </View>
 
-            {/* Estado */}
+            {/* Estado del equipo (9 opciones) */}
             <View style={FormEditStyle.inputGroup}>
               <Text style={FormEditStyle.label}>Estado del Equipo</Text>
               <View style={FormEditStyle.pickerContainer}>
@@ -621,27 +658,106 @@ export default function EditEquipmentScreen() {
                   style={FormEditStyle.picker}
                   enabled={!isLoading}
                 >
-                  <Picker.Item label="Equipo Nuevo" value="nuevo" />
-                  <Picker.Item label="Equipo Usado" value="usado" />
+                  <Picker.Item label="Baja" value="baja" />
+                  <Picker.Item
+                    label="Dañado Destrucción"
+                    value="danado_destruccion"
+                  />
+                  <Picker.Item label="Donación" value="donacion" />
                   <Picker.Item label="En Reparación" value="reparacion" />
-                  <Picker.Item label="Dañado" value="danado" />
+                  <Picker.Item label="Nuevo" value="nuevo" />
+                  <Picker.Item label="Renovado" value="renovado" />
+                  <Picker.Item label="Venta" value="venta" />
+                  <Picker.Item
+                    label="Usado con Garantía"
+                    value="usado_garantia"
+                  />
+                  <Picker.Item
+                    label="Usado Sin Garantía"
+                    value="usado_sin_garantia"
+                  />
                 </Picker>
               </View>
             </View>
 
-            {/* Observaciones */}
+            {/* Esquema */}
+            <View style={FormEditStyle.inputGroup}>
+              <Text style={FormEditStyle.label}>Esquema</Text>
+              <View style={FormEditStyle.pickerContainer}>
+                <Picker
+                  selectedValue={formData.esquema}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, esquema: value })
+                  }
+                  style={FormEditStyle.picker}
+                  enabled={!isLoading}
+                >
+                  <Picker.Item label="CaaS" value="CaaS" />
+                  <Picker.Item label="Activo Fijo" value="Activo Fijo" />
+                </Picker>
+              </View>
+            </View>
+
+            {/* Observaciones (picker con opciones fijas) */}
             <View style={FormEditStyle.inputGroup}>
               <Text style={FormEditStyle.label}>Observaciones</Text>
+              <View style={FormEditStyle.pickerContainer}>
+                <Picker
+                  selectedValue={formData.observaciones}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, observaciones: value })
+                  }
+                  style={FormEditStyle.picker}
+                  enabled={!isLoading}
+                >
+                  <Picker.Item label="Selecciona una observación" value="" />
+                  <Picker.Item
+                    label="Etiqueta Dañada"
+                    value="Etiqueta Dañada"
+                  />
+                  <Picker.Item
+                    label="No carga imagen de Siemens"
+                    value="No carga imagen de Siemens"
+                  />
+                  <Picker.Item
+                    label="No esta en AMTO"
+                    value="No esta en AMTO"
+                  />
+                  <Picker.Item
+                    label="No se puede instalar sistema operativo"
+                    value="No se puede instalar sistema operativo"
+                  />
+                  <Picker.Item
+                    label="No tiene acciones en myIT"
+                    value="No tiene acciones en myIT"
+                  />
+                  <Picker.Item label="Obtener Hash" value="Obtener Hash" />
+                  <Picker.Item label="Sin caja" value="Sin caja" />
+                  <Picker.Item label="Sin Cargador" value="Sin Cargador" />
+                  <Picker.Item
+                    label="Sin Cargador y Sin Caja"
+                    value="Sin Cargador y Sin Caja"
+                  />
+                  <Picker.Item label="Sin etiqueta" value="Sin etiqueta" />
+                  <Picker.Item label="Sin imagen" value="Sin imagen" />
+                  <Picker.Item label="Otro" value="Otro" />
+                </Picker>
+              </View>
+            </View>
+
+            {/* Nota (texto libre) */}
+            <View style={FormEditStyle.inputGroup}>
+              <Text style={FormEditStyle.label}>Nota</Text>
               <TextInput
                 style={[FormEditStyle.input, FormEditStyle.textArea]}
-                value={formData.observaciones}
+                value={formData.nota}
                 onChangeText={(text) =>
-                  setFormData({ ...formData, observaciones: text })
+                  setFormData({ ...formData, nota: text })
                 }
-                placeholder="Notas o comentarios adicionales..."
+                placeholder="Nota adicional (opcional)"
                 placeholderTextColor="#999"
                 multiline
-                numberOfLines={4}
+                numberOfLines={3}
                 textAlignVertical="top"
                 editable={!isLoading}
               />
