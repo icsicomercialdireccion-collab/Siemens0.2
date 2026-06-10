@@ -32,30 +32,43 @@ export const InventoryProvider = ({ children }) => {
     if (!userId) return [];
 
     try {
-      // 👇 QUITAR orderBy TEMPORALMENTE
-      const q = query(
+      console.log("🔍 Buscando inventarios para usuario:", userId);
+
+      // Opción 1: Usar array-contains (recomendado, necesita índice)
+      const qCreated = query(
         collection(db, "inventarios"),
         where("createdBy", "==", userId),
-        // orderBy("updatedAt", "desc")  // 👈 COMENTAR ESTA LÍNEA
       );
 
-      const snapshot = await getDocs(q);
+      const qAssigned = query(
+        collection(db, "inventarios"),
+        where("assignedUsers", "array-contains", userId),
+      );
 
-      // Ordenar manualmente en el cliente
-      const inventories = snapshot.docs.map((doc) => ({
+      const [snapshotCreated, snapshotAssigned] = await Promise.all([
+        getDocs(qCreated),
+        getDocs(qAssigned),
+      ]);
+
+      // Combinar y eliminar duplicados (por si un inventario cumple ambas condiciones)
+      const allDocs = [...snapshotCreated.docs, ...snapshotAssigned.docs];
+      const uniqueDocs = new Map();
+      allDocs.forEach((doc) => uniqueDocs.set(doc.id, doc));
+
+      const inventories = Array.from(uniqueDocs.values()).map((doc) => ({
         id: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate?.() || new Date(),
         updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
       }));
 
-      // 👈 ORDENAR MANUALMENTE (más reciente primero)
+      // Ordenar por updatedAt (más reciente primero)
       return inventories.sort((a, b) => {
         const dateA =
           a.updatedAt instanceof Date ? a.updatedAt : new Date(a.updatedAt);
         const dateB =
           b.updatedAt instanceof Date ? b.updatedAt : new Date(b.updatedAt);
-        return dateB - dateA; // Descendente
+        return dateB - dateA;
       });
     } catch (error) {
       console.error("❌ Error fetchUserInventories:", error);
@@ -65,28 +78,14 @@ export const InventoryProvider = ({ children }) => {
 
   const fetchAllInventories = async () => {
     try {
-      // 👈 SIN orderBy en la consulta (para evitar crear otro índice)
       const q = query(collection(db, "inventarios"));
-
       const snapshot = await getDocs(q);
-
-      const inventories = snapshot.docs.map((doc) => ({
+      return snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate?.() || new Date(),
         updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
       }));
-
-      // 👈 ORDENAR MANUALMENTE EN EL CLIENTE (más reciente primero)
-      const sortedInventories = inventories.sort((a, b) => {
-        const dateA =
-          a.updatedAt instanceof Date ? a.updatedAt : new Date(a.updatedAt);
-        const dateB =
-          b.updatedAt instanceof Date ? b.updatedAt : new Date(b.updatedAt);
-        return dateB - dateA; // Descendente
-      });
-
-      return sortedInventories;
     } catch (error) {
       console.error("Error fetchAllInventories:", error);
       return [];
