@@ -270,9 +270,84 @@ export default function PcForm() {
     }
   };
 
-  const handleSubmit = async () => {
+  const [errors, setErrors] = useState({});
+
+  // 👈 NUEVA FUNCIÓN DE VALIDACIÓN (colocar antes de handleSubmit)
+  const validateForm = () => {
+    const newErrors = {};
+    let hasErrors = false;
+
+    // Serial (obligatorio)
     if (!formData.serial.trim()) {
-      Alert.alert("Error", "El número de serie es requerido");
+      newErrors.serial = "El número de serie es requerido";
+      hasErrors = true;
+    }
+
+    // Perfil (obligatorio)
+    if (!formData.perfil || formData.perfil.trim() === "") {
+      newErrors.perfil = "El perfil es requerido";
+      hasErrors = true;
+    }
+
+    // Ubicación (obligatorio)
+    if (!formData.ubicacion.trim()) {
+      newErrors.ubicacion = "La ubicación es requerida";
+      hasErrors = true;
+    }
+
+    // Estado (obligatorio)
+    if (!formData.estado || formData.estado.trim() === "") {
+      newErrors.estado = "El estado es requerido";
+      hasErrors = true;
+    }
+
+    // Esquema (obligatorio)
+    if (!formData.esquema || formData.esquema.trim() === "") {
+      newErrors.esquema = "El esquema es requerido";
+      hasErrors = true;
+    }
+
+    // Observaciones (obligatorio)
+    if (!formData.observaciones || formData.observaciones.trim() === "") {
+      newErrors.observaciones = "La observación es requerida";
+      hasErrors = true;
+    }
+
+    if (!formData.imagen) {
+      newErrors.imagen = "La imagen del equipo es requerida";
+      hasErrors = true;
+    }
+
+    setErrors(newErrors);
+
+    if (hasErrors) {
+      const nombres = {
+        serial: "Número de serie",
+        perfil: "Perfil",
+        ubicacion: "Ubicación",
+        estado: "Estado",
+        esquema: "Esquema",
+        observaciones: "Observaciones",
+        imagen: "Imagen del equipo",
+      };
+
+      const camposFaltantes = Object.keys(newErrors)
+        .map((key) => `• ${nombres[key] || key}`)
+        .join("\n");
+
+      Alert.alert(
+        "⚠️ Campos incompletos",
+        `Por favor completa los siguientes campos:\n\n${camposFaltantes}`,
+        [{ text: "OK" }],
+      );
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleSubmit = async () => {
+    if (!validateForm()) {
       return;
     }
     if (isSaving) return;
@@ -459,6 +534,7 @@ export default function PcForm() {
                   style={[
                     formEquipmentStyle.input,
                     formEquipmentStyle.serialInput,
+                    errors.serial && formEquipmentStyle.inputError,
                   ]}
                   value={formData.serial}
                   onChangeText={(text) =>
@@ -497,13 +573,131 @@ export default function PcForm() {
                 Este campo es obligatorio. Usa mayúsculas o escanea el código.
               </Text>
             </View>
+            {errors.serial && (
+              <View style={formEquipmentStyle.errorContainer}>
+                <Ionicons name="alert-circle" size={14} color={COLORS.error} />
+                <Text style={formEquipmentStyle.errorText}>
+                  {errors.serial}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* 8. Imagen */}
+          <View style={formEquipmentStyle.section}>
+            <Text style={formEquipmentStyle.sectionTitle}>
+              📸 Fotografía del Equipo *
+            </Text>
+            <Text style={formEquipmentStyle.label}>
+              Sube una foto del equipo:
+            </Text>
+
+            <View style={errors.imagen && formEquipmentStyle.imageSectionError}>
+              <View style={formEquipmentStyle.imageButtonsContainer}>
+                <TouchableOpacity
+                  style={[
+                    formEquipmentStyle.imageButton,
+                    formEquipmentStyle.galleryButton,
+                  ]}
+                  onPress={pickImage}
+                  disabled={loading || isSaving}
+                >
+                  <Ionicons name="image-outline" size={24} color="#fff" />
+                  <Text style={formEquipmentStyle.imageButtonText}>
+                    Galería
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    formEquipmentStyle.imageButton,
+                    formEquipmentStyle.cameraButton,
+                  ]}
+                  onPress={takePhoto}
+                  disabled={loading || isSaving}
+                >
+                  <Ionicons name="camera-outline" size={24} color="#fff" />
+                  <Text style={formEquipmentStyle.imageButtonText}>Cámara</Text>
+                </TouchableOpacity>
+              </View>
+
+              {imagePreview ? (
+                <View style={formEquipmentStyle.imagePreviewContainer}>
+                  <Text style={formEquipmentStyle.label}>Vista previa:</Text>
+                  <Image
+                    source={{ uri: imagePreview }}
+                    style={formEquipmentStyle.imagePreview}
+                    resizeMode="cover"
+                  />
+                  <TouchableOpacity
+                    style={formEquipmentStyle.removeImageButton}
+                    onPress={() => {
+                      setImagePreview(null);
+                      setFormData((prev) => ({ ...prev, imagen: null }));
+                      setImageSavedLocally(false);
+                      if (errors.imagen)
+                        setErrors((prev) => ({ ...prev, imagen: "" }));
+                    }}
+                    disabled={loading || isSaving}
+                  >
+                    <Ionicons
+                      name="close-circle"
+                      size={24}
+                      color={COLORS.error}
+                    />
+                    <Text style={formEquipmentStyle.removeImageText}>
+                      Eliminar imagen
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View
+                  style={[
+                    formEquipmentStyle.noImageContainer,
+                    errors.imagen && formEquipmentStyle.noImageContainerError,
+                  ]}
+                >
+                  <Ionicons
+                    name="image-outline"
+                    size={60}
+                    color={errors.imagen ? COLORS.error : "#ddd"}
+                  />
+                  <Text
+                    style={[
+                      formEquipmentStyle.noImageText,
+                      errors.imagen && formEquipmentStyle.errorText,
+                    ]}
+                  >
+                    {errors.imagen
+                      ? "⚠️ Imagen requerida"
+                      : "No hay imagen seleccionada"}
+                  </Text>
+                  <Text style={formEquipmentStyle.noImageSubtext}>
+                    Toca un botón arriba para agregar
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {errors.imagen && (
+              <View style={formEquipmentStyle.errorContainer}>
+                <Ionicons name="alert-circle" size={14} color={COLORS.error} />
+                <Text style={formEquipmentStyle.errorText}>
+                  {errors.imagen}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* 2. Perfil */}
           <View style={formEquipmentStyle.section}>
             <Text style={formEquipmentStyle.sectionTitle}>📌 Perfil</Text>
             <View style={formEquipmentStyle.inputGroup}>
-              <View style={formEquipmentStyle.pickerContainer}>
+              <View
+                style={[
+                  formEquipmentStyle.pickerContainer,
+                  errors.perfil && formEquipmentStyle.pickerError,
+                ]}
+              >
                 <Picker
                   selectedValue={formData.perfil}
                   onValueChange={(value) =>
@@ -517,6 +711,18 @@ export default function PcForm() {
                   ))}
                 </Picker>
               </View>
+              {errors.perfil && (
+                <View style={formEquipmentStyle.errorContainer}>
+                  <Ionicons
+                    name="alert-circle"
+                    size={14}
+                    color={COLORS.error}
+                  />
+                  <Text style={formEquipmentStyle.errorText}>
+                    {errors.perfil}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
 
@@ -527,9 +733,16 @@ export default function PcForm() {
             </Text>
             <View style={formEquipmentStyle.inputGroup}>
               <TextInput
-                style={formEquipmentStyle.input}
+                style={[
+                  formEquipmentStyle.input,
+                  errors.ubicacion && formEquipmentStyle.inputError, // ✅ CORREGIDO
+                ]}
                 value={formData.ubicacion}
-                onChangeText={buscarSugerencias}
+                onChangeText={(text) => {
+                  buscarSugerencias(text);
+                  if (errors.ubicacion)
+                    setErrors((prev) => ({ ...prev, ubicacion: "" }));
+                }}
                 placeholder="Ej: Planta baja, oficina 101, bodega norte"
                 placeholderTextColor="#999"
                 editable={!loading && !isSaving}
@@ -554,6 +767,18 @@ export default function PcForm() {
                   ))}
                 </View>
               )}
+              {errors.ubicacion && (
+                <View style={formEquipmentStyle.errorContainer}>
+                  <Ionicons
+                    name="alert-circle"
+                    size={14}
+                    color={COLORS.error}
+                  />
+                  <Text style={formEquipmentStyle.errorText}>
+                    {errors.ubicacion}
+                  </Text>
+                </View>
+              )}
               <Text style={formEquipmentStyle.helperText}>
                 Especifica el lugar exacto donde se encuentra el equipo
               </Text>
@@ -566,7 +791,12 @@ export default function PcForm() {
               📝 Estado del Equipo
             </Text>
             <View style={formEquipmentStyle.inputGroup}>
-              <View style={formEquipmentStyle.pickerContainer}>
+              <View
+                style={[
+                  formEquipmentStyle.pickerContainer,
+                  errors.estado && formEquipmentStyle.pickerError, // ✅ CORREGIDO
+                ]}
+              >
                 <Picker
                   selectedValue={formData.estado}
                   onValueChange={(value) =>
@@ -580,6 +810,18 @@ export default function PcForm() {
                   ))}
                 </Picker>
               </View>
+              {errors.estado && (
+                <View style={formEquipmentStyle.errorContainer}>
+                  <Ionicons
+                    name="alert-circle"
+                    size={14}
+                    color={COLORS.error}
+                  />
+                  <Text style={formEquipmentStyle.errorText}>
+                    {errors.estado}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
 
@@ -587,7 +829,12 @@ export default function PcForm() {
           <View style={formEquipmentStyle.section}>
             <Text style={formEquipmentStyle.sectionTitle}>📄 Esquema</Text>
             <View style={formEquipmentStyle.inputGroup}>
-              <View style={formEquipmentStyle.pickerContainer}>
+              <View
+                style={[
+                  formEquipmentStyle.pickerContainer,
+                  errors.esquema && formEquipmentStyle.pickerError, // ✅ CORREGIDO
+                ]}
+              >
                 <Picker
                   selectedValue={formData.esquema}
                   onValueChange={(value) =>
@@ -605,6 +852,18 @@ export default function PcForm() {
                   ))}
                 </Picker>
               </View>
+              {errors.esquema && (
+                <View style={formEquipmentStyle.errorContainer}>
+                  <Ionicons
+                    name="alert-circle"
+                    size={14}
+                    color={COLORS.error}
+                  />
+                  <Text style={formEquipmentStyle.errorText}>
+                    {errors.esquema}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
 
@@ -614,7 +873,12 @@ export default function PcForm() {
               📋 Observaciones
             </Text>
             <View style={formEquipmentStyle.inputGroup}>
-              <View style={formEquipmentStyle.pickerContainer}>
+              <View
+                style={[
+                  formEquipmentStyle.pickerContainer,
+                  errors.observaciones && formEquipmentStyle.pickerError, // ✅ CORREGIDO
+                ]}
+              >
                 <Picker
                   selectedValue={formData.observaciones}
                   onValueChange={(value) =>
@@ -629,6 +893,18 @@ export default function PcForm() {
                   ))}
                 </Picker>
               </View>
+              {errors.observaciones && (
+                <View style={formEquipmentStyle.errorContainer}>
+                  <Ionicons
+                    name="alert-circle"
+                    size={14}
+                    color={COLORS.error}
+                  />
+                  <Text style={formEquipmentStyle.errorText}>
+                    {errors.observaciones}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
 
@@ -650,78 +926,6 @@ export default function PcForm() {
                 textAlignVertical="top"
               />
             </View>
-          </View>
-
-          {/* 8. Imagen */}
-          <View style={formEquipmentStyle.section}>
-            <Text style={formEquipmentStyle.sectionTitle}>
-              📸 Fotografía del Equipo
-            </Text>
-            <Text style={formEquipmentStyle.label}>
-              Sube una foto del equipo:
-            </Text>
-            <View style={formEquipmentStyle.imageButtonsContainer}>
-              <TouchableOpacity
-                style={[
-                  formEquipmentStyle.imageButton,
-                  formEquipmentStyle.galleryButton,
-                ]}
-                onPress={pickImage}
-                disabled={loading || isSaving}
-              >
-                <Ionicons name="image-outline" size={24} color="#fff" />
-                <Text style={formEquipmentStyle.imageButtonText}>Galería</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  formEquipmentStyle.imageButton,
-                  formEquipmentStyle.cameraButton,
-                ]}
-                onPress={takePhoto}
-                disabled={loading || isSaving}
-              >
-                <Ionicons name="camera-outline" size={24} color="#fff" />
-                <Text style={formEquipmentStyle.imageButtonText}>Cámara</Text>
-              </TouchableOpacity>
-            </View>
-            {imagePreview ? (
-              <View style={formEquipmentStyle.imagePreviewContainer}>
-                <Text style={formEquipmentStyle.label}>Vista previa:</Text>
-                <Image
-                  source={{ uri: imagePreview }}
-                  style={formEquipmentStyle.imagePreview}
-                  resizeMode="cover"
-                />
-                <TouchableOpacity
-                  style={formEquipmentStyle.removeImageButton}
-                  onPress={() => {
-                    setImagePreview(null);
-                    setFormData((prev) => ({ ...prev, imagen: null }));
-                    setImageSavedLocally(false);
-                  }}
-                  disabled={loading || isSaving}
-                >
-                  <Ionicons
-                    name="close-circle"
-                    size={24}
-                    color={COLORS.error}
-                  />
-                  <Text style={formEquipmentStyle.removeImageText}>
-                    Eliminar imagen
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={formEquipmentStyle.noImageContainer}>
-                <Ionicons name="image-outline" size={60} color="#ddd" />
-                <Text style={formEquipmentStyle.noImageText}>
-                  No hay imagen seleccionada
-                </Text>
-                <Text style={formEquipmentStyle.noImageSubtext}>
-                  Toca un botón arriba para agregar
-                </Text>
-              </View>
-            )}
           </View>
 
           {/* Botones de acción */}
@@ -1030,5 +1234,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
     opacity: 0.8,
+  },
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 6,
+    gap: 6,
+  },
+  errorText: {
+    color: COLORS.error,
+    fontSize: 12,
+    flex: 1,
+  },
+  inputError: {
+    borderColor: COLORS.error,
+    borderWidth: 1,
+    borderRadius: 8,
+  },
+  pickerError: {
+    borderColor: COLORS.error,
+    borderWidth: 1,
+    borderRadius: 8,
+    overflow: "hidden",
   },
 });

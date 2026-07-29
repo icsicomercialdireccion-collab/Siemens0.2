@@ -40,27 +40,56 @@ const FormInventory = () => {
 
   const validateForm = () => {
     const newErrors = {};
+    let hasErrors = false;
 
     if (!formData.mes.trim()) {
       newErrors.mes = "El mes es requerido";
+      hasErrors = true;
     }
 
     if (!formData.anio.trim()) {
       newErrors.anio = "El año es requerido";
+      hasErrors = true;
     } else if (formData.anio.length !== 4 || isNaN(formData.anio)) {
       newErrors.anio = "Ingresa un año válido (4 dígitos)";
+      hasErrors = true;
     }
 
     if (!formData.estado.trim()) {
       newErrors.estado = "El estado es requerido";
+      hasErrors = true;
     }
 
     if (!formData.localidad.trim()) {
       newErrors.localidad = "La localidad es requerida";
+      hasErrors = true;
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+
+    // Si hay errores, mostrar alerta con los campos faltantes
+    if (hasErrors) {
+      const camposFaltantes = Object.keys(newErrors)
+        .map((key) => {
+          const nombres = {
+            mes: "Mes",
+            anio: "Año",
+            estado: "Estado",
+            localidad: "Localidad",
+          };
+          return `• ${nombres[key] || key}`;
+        })
+        .join("\n");
+
+      Alert.alert(
+        "⚠️ Campos incompletos",
+        `Por favor completa los siguientes campos:\n\n${camposFaltantes}`,
+        [{ text: "OK" }],
+      );
+      return false;
+    }
+
+    return true;
   };
 
   const handleSubmit = async () => {
