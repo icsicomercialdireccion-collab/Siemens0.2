@@ -14,7 +14,13 @@ import {
   where,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import { createContext, useContext, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from "react";
 import { Alert } from "react-native";
 import { db, storage } from "../../firebase/FirebaseConfig";
 
@@ -28,7 +34,7 @@ export const EquipmentProvider = ({ children }) => {
   const [uploadProgress, setUploadProgress] = useState(0);
 
   // Verificar si el serial ya existe en el inventario
-  const checkSerialExists = async (inventoryId, serial) => {
+  const checkSerialExists = useCallback(async (inventoryId, serial) => {
     try {
       const q = query(
         collection(db, "inventarios", inventoryId, "equipos"),
@@ -40,10 +46,10 @@ export const EquipmentProvider = ({ children }) => {
       console.error("❌ Error verificando serial:", error);
       return false;
     }
-  };
+  }, []);
 
   // 1. OBTENER EQUIPOS DE UN INVENTARIO (CON NUEVOS CAMPOS)
-  const getEquipmentsByInventory = async (inventoryId) => {
+  const getEquipmentsByInventory = useCallback(async (inventoryId) => {
     try {
       setLoading(true);
       const q = query(
@@ -90,215 +96,164 @@ export const EquipmentProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  //COMPRESION DE IMAGENES
+  const uploadImageToStorage = useCallback(
+    async (imageUri, inventoryId, serial) => {
+      try {
+        const response = await fetch(imageUri);
+        const blob = await response.blob();
+
+        if (blob.size > 5 * 1024 * 1024) {
+          throw new Error(
+            "La imagen es demasiado grande. Por favor, toma otra foto.",
+          );
+        }
+
+        const cleanSerial = serial
+          .toString()
+          .trim()
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, "_")
+          .substring(0, 50);
+
+        const fileName = `equipos/${inventoryId}/${cleanSerial}_${Date.now()}.jpg`;
+        const storageRef = ref(storage, fileName);
+        await uploadBytes(storageRef, blob, {
+          contentType: "image/jpeg",
+          customMetadata: { serial, inventoryId, compressed: "true" },
+        });
+
+        const downloadURL = await getDownloadURL(storageRef);
+        return { url: downloadURL, fileName };
+      } catch (error) {
+        console.error("❌ Error subiendo imagen:", error.message);
+        return null;
+      }
+    },
+    [],
+  );
 
   // 2. CREAR NUEVO EQUIPO (CON NUEVOS CAMPOS)
-  const createEquipment = async (inventoryId, equipmentData) => {
-    try {
-      setLoading(true);
-
-      if (!equipmentData.serial || !equipmentData.serial.trim()) {
-        throw new Error("El número de serie es requerido");
-      }
-
-      const serial = equipmentData.serial.trim().toUpperCase();
-
-      // Validar serial duplicado
-      const serialExists = await checkSerialExists(inventoryId, serial);
-      if (serialExists) {
-        Alert.alert(
-          "⚠️ Serial Duplicado",
-          `El equipo con serial ${serial} ya existe en este inventario.`,
-          [{ text: "OK" }],
-        );
-        return {
-          success: false,
-          error: `El serial ${serial} ya está registrado`,
-          code: "DUPLICATE_SERIAL",
-        };
-      }
-
-      let finalImageUrl = null;
-      let imageFileName = null;
-
-      if (equipmentData.imagenUrl) {
-        try {
-          const imageResult = await uploadImageToStorage(
-            equipmentData.imagenUrl,
-            inventoryId,
-            serial,
-          );
-          if (imageResult) {
-            finalImageUrl = imageResult.url;
-            imageFileName = imageResult.fileName;
-          }
-        } catch (error) {
-          console.log("⚠️ Error en imagen, continuando con registro...");
-        }
-      }
-
-      const now = new Date();
-      const equipmentWithMeta = {
-        serial: serial,
-        perfil: equipmentData.perfil || "Standard",
-        ubicacion: equipmentData.ubicacion || "",
-        estado: equipmentData.estado || "nuevo",
-        esquema: equipmentData.esquema || "Activo Fijo",
-        observaciones: equipmentData.observaciones || "",
-        nota: equipmentData.nota || "",
-        tipo: equipmentData.tipo || "computadora",
-        imagenUrl: finalImageUrl,
-        imagenFileName: imageFileName,
-        inventoryId: inventoryId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        status: "active",
-        lastImageUpdate: finalImageUrl ? serverTimestamp() : null,
-        createdAtTimestamp: Date.now(),
-      };
-
-      const equipmentRef = await addDoc(
-        collection(db, "inventarios", inventoryId, "equipos"),
-        equipmentWithMeta,
-      );
-
-      // Actualizar contador del inventario
+  const createEquipment = useCallback(
+    async (inventoryId, equipmentData) => {
       try {
-        const inventoryRef = doc(db, "inventarios", inventoryId);
-        await updateDoc(inventoryRef, {
-          totalEquipos: increment(1),
-          updatedAt: serverTimestamp(),
-        });
-      } catch (counterError) {
-        console.warn("Error actualizando contador:", counterError);
-      }
+        setLoading(true);
 
-      const newEquipment = {
-        id: equipmentRef.id,
-        ...equipmentWithMeta,
-        createdAt: now,
-        updatedAt: now,
-        createdAtTimestamp: now.getTime(),
-      };
+        if (!equipmentData.serial || !equipmentData.serial.trim()) {
+          throw new Error("El número de serie es requerido");
+        }
 
-      setEquipments((prev) => [newEquipment, ...prev]);
+        const serial = equipmentData.serial.trim().toUpperCase();
 
-      return {
-        success: true,
-        id: equipmentRef.id,
-        message: finalImageUrl
-          ? "Equipo creado con imagen"
-          : "Equipo creado sin imagen",
-        data: newEquipment,
-        hasImage: !!finalImageUrl,
-      };
-    } catch (error) {
-      console.error("Error creando equipo:", error);
-      let errorMessage = "Error al crear equipo";
-      if (error.message.includes("serial"))
-        errorMessage = "El número de serie es requerido";
-      else if (error.code === "permission-denied")
-        errorMessage = "No tienes permisos para crear equipos";
-      return { success: false, error: errorMessage };
-    } finally {
-      setLoading(false);
-      setUploadProgress(0);
-    }
-  };
+        // Validar serial duplicado
+        const serialExists = await checkSerialExists(inventoryId, serial);
+        if (serialExists) {
+          Alert.alert(
+            "⚠️ Serial Duplicado",
+            `El equipo con serial ${serial} ya existe en este inventario.`,
+            [{ text: "OK" }],
+          );
+          return {
+            success: false,
+            error: `El serial ${serial} ya está registrado`,
+            code: "DUPLICATE_SERIAL",
+          };
+        }
 
-  // 3. ACTUALIZAR EQUIPO (CON NUEVOS CAMPOS)
-  const updateEquipment = async (inventoryId, equipmentId, updates) => {
-    try {
-      setLoading(true);
+        let finalImageUrl = null;
+        let imageFileName = null;
 
-      console.log("📥 updateEquipment recibió:", {
-        inventoryId,
-        equipmentId,
-        updates,
-      });
-
-      if (updates.serial) {
-        const newSerial = updates.serial.trim().toUpperCase();
-        const currentEquipment = await getEquipment(inventoryId, equipmentId);
-        if (
-          currentEquipment.success &&
-          currentEquipment.data.serial !== newSerial
-        ) {
-          const serialExists = await checkSerialExists(inventoryId, newSerial);
-          if (serialExists) {
-            Alert.alert(
-              "⚠️ Serial Duplicado",
-              `El serial ${newSerial} ya está en uso por otro equipo`,
-              [{ text: "OK" }],
+        if (equipmentData.imagenUrl) {
+          try {
+            const imageResult = await uploadImageToStorage(
+              equipmentData.imagenUrl,
+              inventoryId,
+              serial,
             );
-            return {
-              success: false,
-              error: `El serial ${newSerial} ya está registrado`,
-              code: "DUPLICATE_SERIAL",
-            };
+            if (imageResult) {
+              finalImageUrl = imageResult.url;
+              imageFileName = imageResult.fileName;
+            }
+          } catch (error) {
+            console.log("⚠️ Error en imagen, continuando con registro...");
           }
         }
-        updates.serial = newSerial;
+
+        const now = new Date();
+        const equipmentWithMeta = {
+          serial: serial,
+          perfil: equipmentData.perfil || "Standard",
+          ubicacion: equipmentData.ubicacion || "",
+          estado: equipmentData.estado || "nuevo",
+          esquema: equipmentData.esquema || "Activo Fijo",
+          observaciones: equipmentData.observaciones || "",
+          nota: equipmentData.nota || "",
+          tipo: equipmentData.tipo || "computadora",
+          imagenUrl: finalImageUrl,
+          imagenFileName: imageFileName,
+          inventoryId: inventoryId,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          status: "active",
+          lastImageUpdate: finalImageUrl ? serverTimestamp() : null,
+          createdAtTimestamp: Date.now(),
+        };
+
+        const equipmentRef = await addDoc(
+          collection(db, "inventarios", inventoryId, "equipos"),
+          equipmentWithMeta,
+        );
+
+        // Actualizar contador del inventario
+        try {
+          const inventoryRef = doc(db, "inventarios", inventoryId);
+          await updateDoc(inventoryRef, {
+            totalEquipos: increment(1),
+            updatedAt: serverTimestamp(),
+          });
+        } catch (counterError) {
+          console.warn("Error actualizando contador:", counterError);
+        }
+
+        const newEquipment = {
+          id: equipmentRef.id,
+          ...equipmentWithMeta,
+          createdAt: now,
+          updatedAt: now,
+          createdAtTimestamp: now.getTime(),
+        };
+
+        setEquipments((prev) => [newEquipment, ...prev]);
+
+        return {
+          success: true,
+          id: equipmentRef.id,
+          message: finalImageUrl
+            ? "Equipo creado con imagen"
+            : "Equipo creado sin imagen",
+          data: newEquipment,
+          hasImage: !!finalImageUrl,
+        };
+      } catch (error) {
+        console.error("Error creando equipo:", error);
+        let errorMessage = "Error al crear equipo";
+        if (error.message.includes("serial"))
+          errorMessage = "El número de serie es requerido";
+        else if (error.code === "permission-denied")
+          errorMessage = "No tienes permisos para crear equipos";
+        return { success: false, error: errorMessage };
+      } finally {
+        setLoading(false);
+        setUploadProgress(0);
       }
-
-      const equipmentRef = doc(
-        db,
-        "inventarios",
-        inventoryId,
-        "equipos",
-        equipmentId,
-      );
-      const updateData = { ...updates, updatedAt: serverTimestamp() };
-      await updateDoc(equipmentRef, updateData);
-
-      setEquipments((prev) =>
-        prev.map((eq) =>
-          eq.id === equipmentId
-            ? { ...eq, ...updates, updatedAt: new Date() }
-            : eq,
-        ),
-      );
-
-      return { success: true, message: "Equipo actualizado exitosamente" };
-    } catch (error) {
-      console.error("Error actualizando equipo:", error);
-      return { success: false, error: "Error al actualizar equipo" };
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 4. ELIMINAR EQUIPO
-  const deleteEquipment = async (inventoryId, equipmentId) => {
-    try {
-      setLoading(true);
-      const equipmentRef = doc(
-        db,
-        "inventarios",
-        inventoryId,
-        "equipos",
-        equipmentId,
-      );
-      await deleteDoc(equipmentRef);
-
-      const inventoryRef = doc(db, "inventarios", inventoryId);
-      await updateDoc(inventoryRef, {
-        totalEquipos: increment(-1),
-        updatedAt: serverTimestamp(),
-      });
-
-      setEquipments((prev) => prev.filter((eq) => eq.id !== equipmentId));
-      return { success: true, message: "Equipo eliminado exitosamente" };
-    } catch (error) {
-      console.error("Error eliminando equipo:", error);
-      return { success: false, error: "Error al eliminar equipo" };
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [checkSerialExists, uploadImageToStorage],
+  );
 
   // 5. OBTENER UN EQUIPO ESPECÍFICO (CON NUEVOS CAMPOS)
-  const getEquipment = async (inventoryId, equipmentId) => {
+  const getEquipment = useCallback(async (inventoryId, equipmentId) => {
     try {
       if (!inventoryId || !equipmentId) {
         return { success: false, error: "IDs inválidos" };
@@ -337,59 +292,142 @@ export const EquipmentProvider = ({ children }) => {
       console.error("Error en getEquipment:", error);
       return { success: false, error: "Error al cargar equipo" };
     }
-  };
+  }, []);
 
-  // Subir imagen a Storage (sin cambios)
-  const uploadImageToStorage = async (imageUri, inventoryId, serial) => {
-    try {
-      const response = await fetch(imageUri);
-      const blob = await response.blob();
-      const sizeMB = (blob.size / 1024 / 1024).toFixed(2);
+  // 3. ACTUALIZAR EQUIPO (CON NUEVOS CAMPOS)
+  const updateEquipment = useCallback(
+    async (inventoryId, equipmentId, updates) => {
+      try {
+        setLoading(true);
 
-      if (blob.size > 5 * 1024 * 1024) {
-        throw new Error(
-          "La imagen es demasiado grande. Por favor, toma otra foto.",
+        console.log("📥 updateEquipment recibió:", {
+          inventoryId,
+          equipmentId,
+          updates,
+        });
+
+        if (updates.serial) {
+          const newSerial = updates.serial.trim().toUpperCase();
+          const currentEquipment = await getEquipment(inventoryId, equipmentId);
+          if (
+            currentEquipment.success &&
+            currentEquipment.data.serial !== newSerial
+          ) {
+            const serialExists = await checkSerialExists(
+              inventoryId,
+              newSerial,
+            );
+            if (serialExists) {
+              Alert.alert(
+                "⚠️ Serial Duplicado",
+                `El serial ${newSerial} ya está en uso por otro equipo`,
+                [{ text: "OK" }],
+              );
+              return {
+                success: false,
+                error: `El serial ${newSerial} ya está registrado`,
+                code: "DUPLICATE_SERIAL",
+              };
+            }
+          }
+          updates.serial = newSerial;
+        }
+
+        const equipmentRef = doc(
+          db,
+          "inventarios",
+          inventoryId,
+          "equipos",
+          equipmentId,
         );
+        const updateData = { ...updates, updatedAt: serverTimestamp() };
+        await updateDoc(equipmentRef, updateData);
+
+        setEquipments((prev) =>
+          prev.map((eq) =>
+            eq.id === equipmentId
+              ? { ...eq, ...updates, updatedAt: new Date() }
+              : eq,
+          ),
+        );
+
+        return { success: true, message: "Equipo actualizado exitosamente" };
+      } catch (error) {
+        console.error("Error actualizando equipo:", error);
+        return { success: false, error: "Error al actualizar equipo" };
+      } finally {
+        setLoading(false);
       }
+    },
+    [],
+  );
 
-      const cleanSerial = serial
-        .toString()
-        .trim()
-        .toUpperCase()
-        .replace(/[^A-Z0-9]/g, "_")
-        .substring(0, 50);
+  // 4. ELIMINAR EQUIPO
+  const deleteEquipment = useCallback(async (inventoryId, equipmentId) => {
+    try {
+      setLoading(true);
+      const equipmentRef = doc(
+        db,
+        "inventarios",
+        inventoryId,
+        "equipos",
+        equipmentId,
+      );
+      await deleteDoc(equipmentRef);
 
-      const fileName = `equipos/${inventoryId}/${cleanSerial}_${Date.now()}.jpg`;
-      const storageRef = ref(storage, fileName);
-      await uploadBytes(storageRef, blob, {
-        contentType: "image/jpeg",
-        customMetadata: { serial, inventoryId, compressed: "true" },
+      const inventoryRef = doc(db, "inventarios", inventoryId);
+      await updateDoc(inventoryRef, {
+        totalEquipos: increment(-1),
+        updatedAt: serverTimestamp(),
       });
 
-      const downloadURL = await getDownloadURL(storageRef);
-      return { url: downloadURL, fileName };
+      setEquipments((prev) => prev.filter((eq) => eq.id !== equipmentId));
+      return { success: true, message: "Equipo eliminado exitosamente" };
     } catch (error) {
-      console.error("❌ Error subiendo imagen:", error.message);
-      return null;
+      console.error("Error eliminando equipo:", error);
+      return { success: false, error: "Error al eliminar equipo" };
+    } finally {
+      setLoading(false);
     }
-  };
+  }, []);
 
-  const clearEquipments = () => setEquipments([]);
+  const clearEquipments = useCallback(() => setEquipments([]), []);
 
-  const value = {
-    loading,
-    equipments,
-    uploadProgress,
-    getEquipmentsByInventory,
-    createEquipment,
-    updateEquipment,
-    deleteEquipment,
-    getEquipment,
-    uploadImageToStorage,
-    checkSerialExists,
-    refreshEquipments: (inventoryId) => getEquipmentsByInventory(inventoryId),
-    clearEquipments,
-  };
+  const refreshEquipments = useCallback(
+    (inventoryId) => getEquipmentsByInventory(inventoryId),
+    [getEquipmentsByInventory],
+  );
+
+  const value = useMemo(
+    () => ({
+      loading,
+      equipments,
+      uploadProgress,
+      getEquipmentsByInventory,
+      createEquipment,
+      updateEquipment,
+      deleteEquipment,
+      getEquipment,
+      uploadImageToStorage,
+      checkSerialExists,
+      refreshEquipments,
+      clearEquipments,
+    }),
+    [
+      loading,
+      equipments,
+      uploadProgress,
+      getEquipmentsByInventory,
+      createEquipment,
+      updateEquipment,
+      deleteEquipment,
+      getEquipment,
+      uploadImageToStorage,
+      checkSerialExists,
+      refreshEquipments,
+      clearEquipments,
+    ],
+  );
 
   return (
     <EquipmentContext.Provider value={value}>

@@ -1,11 +1,11 @@
 // app/components/EquipmentList.jsx - VERSIÓN CON MODAL
 
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Text,
   TouchableOpacity,
   View,
@@ -13,6 +13,8 @@ import {
 import { ListStyle } from "../../assets/styles/list.style";
 import { COLORS } from "../../constants/colors";
 import DeleteConfirmationModal from "./DeleteConfirmationModal";
+
+const BLURHASH_PLACEHOLDER = "L6PZfSi_.AyE_3t7t7R**0o#DgR4";
 
 export default function EquipmentList({
   equipments,
@@ -120,7 +122,11 @@ export default function EquipmentList({
             <Image
               source={{ uri: item.imagenUrl }}
               style={ListStyle.equipmentImage}
-              resizeMode="cover"
+              contentFit="cover"
+              cachePolicy="disk"
+              placeholder={{ blurhash: BLURHASH_PLACEHOLDER }}
+              transition={150}
+              recyclingKey={item.id}
             />
             <View style={ListStyle.imageBadge}>
               <Ionicons name="image" size={12} color="#fff" />

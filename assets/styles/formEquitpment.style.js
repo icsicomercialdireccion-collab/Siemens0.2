@@ -34,7 +34,7 @@ export const formEquipmentStyle = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 12,
     padding: 20,
-    marginBottom: 20,
+    marginBottom: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -48,7 +48,7 @@ export const formEquipmentStyle = StyleSheet.create({
     marginBottom: 15,
   },
   inputGroup: {
-    marginBottom: 5,
+    marginBottom: 8,
   },
   label: {
     fontSize: 14,
@@ -180,7 +180,7 @@ export const formEquipmentStyle = StyleSheet.create({
     marginTop: 5,
   },
   textArea: {
-    minHeight: 100,
+    minHeight: 50,
     paddingTop: 12,
   },
   charCount: {
