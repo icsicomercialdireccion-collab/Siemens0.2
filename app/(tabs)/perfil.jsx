@@ -318,7 +318,7 @@ export default function PerfilAdminScreen() {
       </TouchableOpacity>
 
       {/* Versión de la app */}
-      <Text style={profileStyle.versionText}>v1.1.1</Text>
+      <Text style={profileStyle.versionText}>v1.2.1</Text>
 
       {/* 👈 MODAL DE LOGOUT */}
       <LogoutModal
