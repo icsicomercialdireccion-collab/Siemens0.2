@@ -8,7 +8,9 @@ import {
   Alert,
   Animated,
   Image,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -26,7 +28,7 @@ import { useEquipment } from "../contexts/EquipmentContext";
 
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 
 export default function PcForm() {
   const { inventoryId } = useLocalSearchParams();
@@ -36,15 +38,14 @@ export default function PcForm() {
   const { width: screenWidth } = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
 
-  // Estados del formulario (NUEVO ORDEN)
   const [formData, setFormData] = useState({
-    serial: "", // Número de serie
-    perfil: "Standard", // 👈 NUEVO: Standard | Workstation | Ejecutiva | Mini | Tower
-    ubicacion: "", // Ubicación física
-    estado: "nuevo", // 👈 NUEVOS ESTADOS (valor interno)
-    esquema: "Activo Fijo", // 👈 NUEVO: Activo Fijo | CaaS
-    observaciones: "", // 👈 NUEVO: será picker con opciones fijas
-    nota: "", // 👈 NUEVO: campo Nota (texto libre)
+    serial: "",
+    perfil: "Standard",
+    ubicacion: "",
+    estado: "nuevo",
+    esquema: "Activo Fijo",
+    observaciones: "",
+    nota: "",
     imagen: null,
   });
 
@@ -52,19 +53,18 @@ export default function PcForm() {
   const [imageSavedLocally, setImageSavedLocally] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const [showScanner, setShowScanner] = useState(false);
+  const [cameraModalVisible, setCameraModalVisible] = useState(false);
+  const [cameraMode, setCameraMode] = useState("scan"); // "scan" | "photo"
+  const [cameraBusy, setCameraBusy] = useState(false);
   const [scanned, setScanned] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
-  const [showCameraModal, setShowCameraModal] = useState(false);
   const [cameraType, setCameraType] = useState("back");
 
-  const scannerCameraRef = useRef(null);
-  const photoCameraRef = useRef(null);
+  const cameraRef = useRef(null);
 
   const [sugerencias, setSugerencias] = useState([]);
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
 
-  // Opciones de los pickers
   const perfiles = ["Standard", "Workstation", "Ejecutiva", "Mini", "Tower"];
   const estados = [
     "Baja",
@@ -93,7 +93,6 @@ export default function PcForm() {
     "Otro",
   ];
 
-  // Mapeo de estados a valores internos (para guardar en Firebase)
   const estadoMap = {
     Baja: "baja",
     "Dañado Destrucción": "danado_destruccion",
@@ -139,43 +138,53 @@ export default function PcForm() {
     }
   };
 
-  const handleBarCodeScanned = ({ type, data }) => {
-    if (!scanned) {
-      setScanned(true);
-      setFormData((prev) => ({ ...prev, serial: data }));
-      setTimeout(() => {
-        setShowScanner(false);
-        Alert.alert("✅ Código Escaneado", `Número de serie: ${data}`);
-      }, 1500);
-    }
-  };
-
-  const openScanner = async () => {
+  const openCamera = async (mode) => {
+    if (cameraBusy) return;
     try {
       if (!permission?.granted) {
         const result = await requestPermission();
         if (!result.granted) {
           Alert.alert(
             "Permiso requerido",
-            "Necesitas permitir el acceso a la cámara para escanear",
+            "Necesitas permitir el acceso a la cámara",
           );
           return;
         }
       }
+      setCameraBusy(true);
+      setCameraMode(mode);
       setScanned(false);
-      if (global.gc) global.gc();
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      setShowScanner(true);
+      setCameraModalVisible(true);
     } catch (error) {
-      console.error("Error abriendo scanner:", error);
+      console.error("Error abriendo cámara:", error);
       Alert.alert("Error", "No se pudo abrir la cámara");
+      setCameraBusy(false);
+      return;
+    }
+    setTimeout(() => setCameraBusy(false), 500);
+  };
+
+  const closeCamera = () => {
+    if (cameraBusy) return;
+    setCameraBusy(true);
+    setCameraModalVisible(false);
+    setScanned(false);
+    setTimeout(() => setCameraBusy(false), 500);
+  };
+
+  const handleBarCodeScanned = ({ type, data }) => {
+    if (!scanned) {
+      setScanned(true);
+      setFormData((prev) => ({ ...prev, serial: data }));
+      setTimeout(() => {
+        closeCamera();
+        Alert.alert("✅ Código Escaneado", `Número de serie: ${data}`);
+      }, 1500);
     }
   };
 
-  const closeScanner = () => {
-    setShowScanner(false);
-    setScanned(false);
-  };
+  const openScanner = () => openCamera("scan");
+  const takePhoto = () => openCamera("photo");
 
   const pickImage = async () => {
     try {
@@ -205,55 +214,35 @@ export default function PcForm() {
     }
   };
 
-  const takePhoto = async () => {
-    try {
-      if (!permission?.granted) {
-        const result = await requestPermission();
-        if (!result.granted) {
-          Alert.alert(
-            "Permiso denegado",
-            "Necesitas permitir acceso a la cámara",
-          );
-          return;
-        }
-      }
-      setShowCameraModal(true);
-    } catch (error) {
-      console.error("❌ Error accediendo a la cámara:", error);
-      Alert.alert("Error", "No se pudo acceder a la cámara");
-    }
-  };
-
   const capturePhoto = async () => {
-    if (photoCameraRef.current) {
-      try {
-        const photoOptions = {
-          quality: 0.5,
-          base64: false,
-          exif: false,
-          skipProcessing: true,
-        };
-        const photo =
-          await photoCameraRef.current.takePictureAsync(photoOptions);
-        const compressedPhoto = await ImageManipulator.manipulateAsync(
-          photo.uri,
-          [{ resize: { width: 1024 } }],
-          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG },
-        );
-        if (photoCameraRef.current) {
-          await photoCameraRef.current.pausePreview?.();
-          photoCameraRef.current = null;
-        }
-        setShowCameraModal(false);
-        setFormData((prev) => ({ ...prev, imagen: compressedPhoto.uri }));
-        setImagePreview(compressedPhoto.uri);
-        setImageSavedLocally(false);
-        Alert.alert("Foto tomada", "Foto guardada exitosamente");
-      } catch (error) {
-        console.error("Error tomando foto:", error);
-        Alert.alert("Error", "No se pudo tomar la foto");
-        setShowCameraModal(false);
-      }
+    if (!cameraRef.current) return;
+    try {
+      const photoOptions = {
+        quality: 0.5,
+        base64: false,
+        exif: false,
+        skipProcessing: true,
+      };
+      const photo = await cameraRef.current.takePictureAsync(photoOptions);
+      const compressedPhoto = await ImageManipulator.manipulateAsync(
+        photo.uri,
+        [{ resize: { width: 1024 } }],
+        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG },
+      );
+
+      // ✅ borra el original sin comprimir — ya no se necesita
+      await FileSystem.deleteAsync(photo.uri, { idempotent: true });
+
+      setFormData((prev) => ({ ...prev, imagen: compressedPhoto.uri }));
+      setImagePreview(compressedPhoto.uri);
+      setImageSavedLocally(false);
+
+      closeCamera();
+      Alert.alert("Foto tomada", "Foto guardada exitosamente");
+    } catch (error) {
+      console.error("Error tomando foto:", error);
+      Alert.alert("Error", "No se pudo tomar la foto");
+      closeCamera();
     }
   };
 
@@ -272,47 +261,34 @@ export default function PcForm() {
 
   const [errors, setErrors] = useState({});
 
-  // 👈 NUEVA FUNCIÓN DE VALIDACIÓN (colocar antes de handleSubmit)
   const validateForm = () => {
     const newErrors = {};
     let hasErrors = false;
 
-    // Serial (obligatorio)
     if (!formData.serial.trim()) {
       newErrors.serial = "El número de serie es requerido";
       hasErrors = true;
     }
-
-    // Perfil (obligatorio)
     if (!formData.perfil || formData.perfil.trim() === "") {
       newErrors.perfil = "El perfil es requerido";
       hasErrors = true;
     }
-
-    // Ubicación (obligatorio)
     if (!formData.ubicacion.trim()) {
       newErrors.ubicacion = "La ubicación es requerida";
       hasErrors = true;
     }
-
-    // Estado (obligatorio)
     if (!formData.estado || formData.estado.trim() === "") {
       newErrors.estado = "El estado es requerido";
       hasErrors = true;
     }
-
-    // Esquema (obligatorio)
     if (!formData.esquema || formData.esquema.trim() === "") {
       newErrors.esquema = "El esquema es requerido";
       hasErrors = true;
     }
-
-    // Observaciones (obligatorio)
     if (!formData.observaciones || formData.observaciones.trim() === "") {
       newErrors.observaciones = "La observación es requerida";
       hasErrors = true;
     }
-
     if (!formData.imagen) {
       newErrors.imagen = "La imagen del equipo es requerida";
       hasErrors = true;
@@ -330,7 +306,6 @@ export default function PcForm() {
         observaciones: "Observaciones",
         imagen: "Imagen del equipo",
       };
-
       const camposFaltantes = Object.keys(newErrors)
         .map((key) => `• ${nombres[key] || key}`)
         .join("\n");
@@ -342,14 +317,11 @@ export default function PcForm() {
       );
       return false;
     }
-
     return true;
   };
 
   const handleSubmit = async () => {
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
     if (isSaving) return;
     setIsSaving(true);
 
@@ -363,7 +335,7 @@ export default function PcForm() {
       }
 
       const equipmentData = {
-        serial: serial,
+        serial,
         perfil: formData.perfil,
         ubicacion: formData.ubicacion,
         estado: estadoMap[formData.estado] || formData.estado,
@@ -373,7 +345,7 @@ export default function PcForm() {
         imagenUrl: formData.imagen,
         tipo: "computadora",
         createdAt: new Date().toISOString(),
-        localImageUri: localImageUri,
+        localImageUri,
       };
 
       const result = await createEquipment(inventoryId, equipmentData);
@@ -449,7 +421,7 @@ export default function PcForm() {
 
   useEffect(() => {
     let animation;
-    if (!scanned && showScanner) {
+    if (!scanned && cameraModalVisible && cameraMode === "scan") {
       animation = Animated.loop(
         Animated.sequence([
           Animated.timing(scanAnimation, {
@@ -468,391 +440,228 @@ export default function PcForm() {
     return () => {
       if (animation) animation.stop();
     };
-  }, [scanned, showScanner]);
+  }, [scanned, cameraModalVisible, cameraMode]);
 
   useEffect(() => {
     return () => {
       if (formData.imagen) limpiarImagenTemporal(formData.imagen);
       if (imagePreview) limpiarImagenTemporal(imagePreview);
-      if (scannerCameraRef.current) scannerCameraRef.current = null;
-      if (photoCameraRef.current) photoCameraRef.current = null;
     };
   }, []);
 
   return (
     <>
-      <ScrollView
-        style={formEquipmentStyle.container}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
-        <View style={formEquipmentStyle.formContainer}>
-          <View style={formEquipmentStyle.header}>
-            <Ionicons
-              name="hardware-chip-outline"
-              size={40}
-              color={COLORS.primary}
-            />
-            <Text style={formEquipmentStyle.title}>Registrar Nuevo Equipo</Text>
-            <Text style={formEquipmentStyle.subtitle}>
-              Inventario: {inventoryId?.substring(0, 8)}...
-            </Text>
-          </View>
-
-          {/* Guardado automático en galería */}
-          <View style={formEquipmentStyle.section}>
-            <View style={formEquipmentStyle.saveLocalContainer}>
-              <View style={{ flex: 1 }}>
-                <Text style={formEquipmentStyle.saveLocalLabel}>
-                  📸 Guardado automático en galería
-                </Text>
-                <Text style={formEquipmentStyle.saveLocalSubLabel}>
-                  La imagen se guardará en tu teléfono al registrar el equipo
-                </Text>
-              </View>
-              <Switch
-                value={saveImageLocally}
-                onValueChange={setSaveImageLocally}
-                trackColor={{ false: "#767577", true: COLORS.primary }}
-                thumbColor={saveImageLocally ? "#fff" : "#f4f3f4"}
+        <ScrollView
+          style={formEquipmentStyle.container}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={formEquipmentStyle.formContainer}>
+            <View style={formEquipmentStyle.header}>
+              <Ionicons
+                name="hardware-chip-outline"
+                size={40}
+                color={COLORS.primary}
               />
-            </View>
-            {imageSavedLocally && (
-              <Text style={formEquipmentStyle.successText}>
-                ✅ Imagen guardada en tu galería
+              <Text style={formEquipmentStyle.title}>
+                Registrar Nuevo Equipo
               </Text>
-            )}
-          </View>
-
-          {/* 1. Número de serie */}
-          <View style={formEquipmentStyle.section}>
-            <Text style={formEquipmentStyle.sectionTitle}>
-              🔢 Número de Serie *
-            </Text>
-            <View style={formEquipmentStyle.inputGroup}>
-              <View style={formEquipmentStyle.serialInputContainer}>
-                <TextInput
-                  style={[
-                    formEquipmentStyle.input,
-                    formEquipmentStyle.serialInput,
-                    errors.serial && formEquipmentStyle.inputError,
-                  ]}
-                  value={formData.serial}
-                  onChangeText={(text) =>
-                    setFormData((prev) => ({ ...prev, serial: text }))
-                  }
-                  placeholder="Ej: SN123456789ABC"
-                  placeholderTextColor="#999"
-                  editable={!loading && !isSaving}
-                  autoCapitalize="characters"
-                  maxLength={50}
-                />
-                <TouchableOpacity
-                  style={formEquipmentStyle.scannerButton}
-                  onPress={openScanner}
-                  disabled={loading || isSaving}
-                >
-                  <Ionicons name="barcode-outline" size={24} color="#fff" />
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity
-                style={formEquipmentStyle.scannerFullButton}
-                onPress={openScanner}
-                disabled={loading || isSaving}
-              >
-                <Ionicons
-                  name="barcode-outline"
-                  size={20}
-                  color={COLORS.primary}
-                />
-                <Text style={formEquipmentStyle.scannerButtonText}>
-                  {" "}
-                  ESCANEAR CÓDIGO DE BARRAS
-                </Text>
-              </TouchableOpacity>
-              <Text style={formEquipmentStyle.helperText}>
-                Este campo es obligatorio. Usa mayúsculas o escanea el código.
+              <Text style={formEquipmentStyle.subtitle}>
+                Inventario: {inventoryId?.substring(0, 8)}...
               </Text>
             </View>
-            {errors.serial && (
-              <View style={formEquipmentStyle.errorContainer}>
-                <Ionicons name="alert-circle" size={14} color={COLORS.error} />
-                <Text style={formEquipmentStyle.errorText}>
-                  {errors.serial}
-                </Text>
-              </View>
-            )}
-          </View>
 
-          {/* 8. Imagen */}
-          <View style={formEquipmentStyle.section}>
-            <Text style={formEquipmentStyle.sectionTitle}>
-              📸 Fotografía del Equipo *
-            </Text>
-            <Text style={formEquipmentStyle.label}>
-              Sube una foto del equipo:
-            </Text>
-
-            <View style={errors.imagen && formEquipmentStyle.imageSectionError}>
-              <View style={formEquipmentStyle.imageButtonsContainer}>
-                <TouchableOpacity
-                  style={[
-                    formEquipmentStyle.imageButton,
-                    formEquipmentStyle.galleryButton,
-                  ]}
-                  onPress={pickImage}
-                  disabled={loading || isSaving}
-                >
-                  <Ionicons name="image-outline" size={24} color="#fff" />
-                  <Text style={formEquipmentStyle.imageButtonText}>
-                    Galería
+            <View style={formEquipmentStyle.section}>
+              <View style={formEquipmentStyle.saveLocalContainer}>
+                <View style={{ flex: 1 }}>
+                  <Text style={formEquipmentStyle.saveLocalLabel}>
+                    📸 Guardado automático en galería
                   </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    formEquipmentStyle.imageButton,
-                    formEquipmentStyle.cameraButton,
-                  ]}
-                  onPress={takePhoto}
-                  disabled={loading || isSaving}
-                >
-                  <Ionicons name="camera-outline" size={24} color="#fff" />
-                  <Text style={formEquipmentStyle.imageButtonText}>Cámara</Text>
-                </TouchableOpacity>
+                  <Text style={formEquipmentStyle.saveLocalSubLabel}>
+                    La imagen se guardará en tu teléfono al registrar el equipo
+                  </Text>
+                </View>
+                <Switch
+                  value={saveImageLocally}
+                  onValueChange={setSaveImageLocally}
+                  trackColor={{ false: "#767577", true: COLORS.primary }}
+                  thumbColor={saveImageLocally ? "#fff" : "#f4f3f4"}
+                />
               </View>
+              {imageSavedLocally && (
+                <Text style={formEquipmentStyle.successText}>
+                  ✅ Imagen guardada en tu galería
+                </Text>
+              )}
+            </View>
 
-              {imagePreview ? (
-                <View style={formEquipmentStyle.imagePreviewContainer}>
-                  <Text style={formEquipmentStyle.label}>Vista previa:</Text>
-                  <Image
-                    source={{ uri: imagePreview }}
-                    style={formEquipmentStyle.imagePreview}
-                    resizeMode="cover"
+            <View style={formEquipmentStyle.section}>
+              <Text style={formEquipmentStyle.sectionTitle}>
+                🔢 Número de Serie *
+              </Text>
+              <View style={formEquipmentStyle.inputGroup}>
+                <View style={formEquipmentStyle.serialInputContainer}>
+                  <TextInput
+                    style={[
+                      formEquipmentStyle.input,
+                      formEquipmentStyle.serialInput,
+                      errors.serial && formEquipmentStyle.inputError,
+                    ]}
+                    value={formData.serial}
+                    onChangeText={(text) =>
+                      setFormData((prev) => ({ ...prev, serial: text }))
+                    }
+                    placeholder="Ej: SN123456789ABC"
+                    placeholderTextColor="#999"
+                    editable={!loading && !isSaving}
+                    autoCapitalize="characters"
+                    maxLength={50}
                   />
                   <TouchableOpacity
-                    style={formEquipmentStyle.removeImageButton}
-                    onPress={() => {
-                      setImagePreview(null);
-                      setFormData((prev) => ({ ...prev, imagen: null }));
-                      setImageSavedLocally(false);
-                      if (errors.imagen)
-                        setErrors((prev) => ({ ...prev, imagen: "" }));
-                    }}
+                    style={formEquipmentStyle.scannerButton}
+                    onPress={openScanner}
+                    disabled={loading || isSaving || cameraBusy}
+                  >
+                    <Ionicons name="barcode-outline" size={24} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  style={formEquipmentStyle.scannerFullButton}
+                  onPress={openScanner}
+                  disabled={loading || isSaving || cameraBusy}
+                >
+                  <Ionicons
+                    name="barcode-outline"
+                    size={20}
+                    color={COLORS.primary}
+                  />
+                  <Text style={formEquipmentStyle.scannerButtonText}>
+                    {" "}
+                    ESCANEAR CÓDIGO DE BARRAS
+                  </Text>
+                </TouchableOpacity>
+                <Text style={formEquipmentStyle.helperText}>
+                  Este campo es obligatorio. Usa mayúsculas o escanea el código.
+                </Text>
+              </View>
+              {errors.serial && (
+                <View style={formEquipmentStyle.errorContainer}>
+                  <Ionicons
+                    name="alert-circle"
+                    size={14}
+                    color={COLORS.error}
+                  />
+                  <Text style={formEquipmentStyle.errorText}>
+                    {errors.serial}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View style={formEquipmentStyle.section}>
+              <Text style={formEquipmentStyle.sectionTitle}>
+                📸 Fotografía del Equipo *
+              </Text>
+              <Text style={formEquipmentStyle.label}>
+                Sube una foto del equipo:
+              </Text>
+
+              <View
+                style={errors.imagen && formEquipmentStyle.imageSectionError}
+              >
+                <View style={formEquipmentStyle.imageButtonsContainer}>
+                  <TouchableOpacity
+                    style={[
+                      formEquipmentStyle.imageButton,
+                      formEquipmentStyle.galleryButton,
+                    ]}
+                    onPress={pickImage}
                     disabled={loading || isSaving}
                   >
-                    <Ionicons
-                      name="close-circle"
-                      size={24}
-                      color={COLORS.error}
-                    />
-                    <Text style={formEquipmentStyle.removeImageText}>
-                      Eliminar imagen
+                    <Ionicons name="image-outline" size={24} color="#fff" />
+                    <Text style={formEquipmentStyle.imageButtonText}>
+                      Galería
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      formEquipmentStyle.imageButton,
+                      formEquipmentStyle.cameraButton,
+                    ]}
+                    onPress={takePhoto}
+                    disabled={loading || isSaving || cameraBusy}
+                  >
+                    <Ionicons name="camera-outline" size={24} color="#fff" />
+                    <Text style={formEquipmentStyle.imageButtonText}>
+                      Cámara
                     </Text>
                   </TouchableOpacity>
                 </View>
-              ) : (
-                <View
-                  style={[
-                    formEquipmentStyle.noImageContainer,
-                    errors.imagen && formEquipmentStyle.noImageContainerError,
-                  ]}
-                >
-                  <Ionicons
-                    name="image-outline"
-                    size={60}
-                    color={errors.imagen ? COLORS.error : "#ddd"}
-                  />
-                  <Text
-                    style={[
-                      formEquipmentStyle.noImageText,
-                      errors.imagen && formEquipmentStyle.errorText,
-                    ]}
-                  >
-                    {errors.imagen
-                      ? "⚠️ Imagen requerida"
-                      : "No hay imagen seleccionada"}
-                  </Text>
-                  <Text style={formEquipmentStyle.noImageSubtext}>
-                    Toca un botón arriba para agregar
-                  </Text>
-                </View>
-              )}
-            </View>
 
-            {errors.imagen && (
-              <View style={formEquipmentStyle.errorContainer}>
-                <Ionicons name="alert-circle" size={14} color={COLORS.error} />
-                <Text style={formEquipmentStyle.errorText}>
-                  {errors.imagen}
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* 2. Perfil */}
-          <View style={formEquipmentStyle.section}>
-            <Text style={formEquipmentStyle.sectionTitle}>📌 Perfil</Text>
-            <View style={formEquipmentStyle.inputGroup}>
-              <View
-                style={[
-                  formEquipmentStyle.pickerContainer,
-                  errors.perfil && formEquipmentStyle.pickerError,
-                ]}
-              >
-                <Picker
-                  selectedValue={formData.perfil}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, perfil: value }))
-                  }
-                  style={formEquipmentStyle.picker}
-                  enabled={!loading && !isSaving}
-                >
-                  {perfiles.map((perfil) => (
-                    <Picker.Item key={perfil} label={perfil} value={perfil} />
-                  ))}
-                </Picker>
-              </View>
-              {errors.perfil && (
-                <View style={formEquipmentStyle.errorContainer}>
-                  <Ionicons
-                    name="alert-circle"
-                    size={14}
-                    color={COLORS.error}
-                  />
-                  <Text style={formEquipmentStyle.errorText}>
-                    {errors.perfil}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-
-          {/* 3. Ubicación física */}
-          <View style={formEquipmentStyle.section}>
-            <Text style={formEquipmentStyle.sectionTitle}>
-              📍 Ubicación Física
-            </Text>
-            <View style={formEquipmentStyle.inputGroup}>
-              <TextInput
-                style={[
-                  formEquipmentStyle.input,
-                  errors.ubicacion && formEquipmentStyle.inputError, // ✅ CORREGIDO
-                ]}
-                value={formData.ubicacion}
-                onChangeText={(text) => {
-                  buscarSugerencias(text);
-                  if (errors.ubicacion)
-                    setErrors((prev) => ({ ...prev, ubicacion: "" }));
-                }}
-                placeholder="Ej: Planta baja, oficina 101, bodega norte"
-                placeholderTextColor="#999"
-                editable={!loading && !isSaving}
-              />
-              {mostrarSugerencias && sugerencias.length > 0 && (
-                <View style={formEquipmentStyle.sugerenciasContainer}>
-                  {sugerencias.map((item, index) => (
+                {imagePreview ? (
+                  <View style={formEquipmentStyle.imagePreviewContainer}>
+                    <Text style={formEquipmentStyle.label}>Vista previa:</Text>
+                    <Image
+                      source={{ uri: imagePreview }}
+                      style={formEquipmentStyle.imagePreview}
+                      resizeMode="cover"
+                    />
                     <TouchableOpacity
-                      key={index}
-                      style={formEquipmentStyle.sugerenciaItem}
-                      onPress={() => seleccionarSugerencia(item)}
+                      style={formEquipmentStyle.removeImageButton}
+                      onPress={() => {
+                        setImagePreview(null);
+                        setFormData((prev) => ({ ...prev, imagen: null }));
+                        setImageSavedLocally(false);
+                        if (errors.imagen)
+                          setErrors((prev) => ({ ...prev, imagen: "" }));
+                      }}
+                      disabled={loading || isSaving}
                     >
                       <Ionicons
-                        name="location-outline"
-                        size={16}
-                        color={COLORS.primary}
+                        name="close-circle"
+                        size={24}
+                        color={COLORS.error}
                       />
-                      <Text style={formEquipmentStyle.sugerenciaText}>
-                        {item}
+                      <Text style={formEquipmentStyle.removeImageText}>
+                        Eliminar imagen
                       </Text>
                     </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-              {errors.ubicacion && (
-                <View style={formEquipmentStyle.errorContainer}>
-                  <Ionicons
-                    name="alert-circle"
-                    size={14}
-                    color={COLORS.error}
-                  />
-                  <Text style={formEquipmentStyle.errorText}>
-                    {errors.ubicacion}
-                  </Text>
-                </View>
-              )}
-              <Text style={formEquipmentStyle.helperText}>
-                Especifica el lugar exacto donde se encuentra el equipo
-              </Text>
-            </View>
-          </View>
-
-          {/* 4. Estado del equipo */}
-          <View style={formEquipmentStyle.section}>
-            <Text style={formEquipmentStyle.sectionTitle}>
-              📝 Estado del Equipo
-            </Text>
-            <View style={formEquipmentStyle.inputGroup}>
-              <View
-                style={[
-                  formEquipmentStyle.pickerContainer,
-                  errors.estado && formEquipmentStyle.pickerError, // ✅ CORREGIDO
-                ]}
-              >
-                <Picker
-                  selectedValue={formData.estado}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, estado: value }))
-                  }
-                  style={formEquipmentStyle.picker}
-                  enabled={!loading && !isSaving}
-                >
-                  {estados.map((estado) => (
-                    <Picker.Item key={estado} label={estado} value={estado} />
-                  ))}
-                </Picker>
-              </View>
-              {errors.estado && (
-                <View style={formEquipmentStyle.errorContainer}>
-                  <Ionicons
-                    name="alert-circle"
-                    size={14}
-                    color={COLORS.error}
-                  />
-                  <Text style={formEquipmentStyle.errorText}>
-                    {errors.estado}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-
-          {/* 5. Esquema */}
-          <View style={formEquipmentStyle.section}>
-            <Text style={formEquipmentStyle.sectionTitle}>📄 Esquema</Text>
-            <View style={formEquipmentStyle.inputGroup}>
-              <View
-                style={[
-                  formEquipmentStyle.pickerContainer,
-                  errors.esquema && formEquipmentStyle.pickerError, // ✅ CORREGIDO
-                ]}
-              >
-                <Picker
-                  selectedValue={formData.esquema}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, esquema: value }))
-                  }
-                  style={formEquipmentStyle.picker}
-                  enabled={!loading && !isSaving}
-                >
-                  {esquemas.map((esquema) => (
-                    <Picker.Item
-                      key={esquema}
-                      label={esquema}
-                      value={esquema}
+                  </View>
+                ) : (
+                  <View
+                    style={[
+                      formEquipmentStyle.noImageContainer,
+                      errors.imagen && formEquipmentStyle.noImageContainerError,
+                    ]}
+                  >
+                    <Ionicons
+                      name="image-outline"
+                      size={60}
+                      color={errors.imagen ? COLORS.error : "#ddd"}
                     />
-                  ))}
-                </Picker>
+                    <Text
+                      style={[
+                        formEquipmentStyle.noImageText,
+                        errors.imagen && formEquipmentStyle.errorText,
+                      ]}
+                    >
+                      {errors.imagen
+                        ? "⚠️ Imagen requerida"
+                        : "No hay imagen seleccionada"}
+                    </Text>
+                    <Text style={formEquipmentStyle.noImageSubtext}>
+                      Toca un botón arriba para agregar
+                    </Text>
+                  </View>
+                )}
               </View>
-              {errors.esquema && (
+
+              {errors.imagen && (
                 <View style={formEquipmentStyle.errorContainer}>
                   <Ionicons
                     name="alert-circle"
@@ -860,150 +669,361 @@ export default function PcForm() {
                     color={COLORS.error}
                   />
                   <Text style={formEquipmentStyle.errorText}>
-                    {errors.esquema}
+                    {errors.imagen}
                   </Text>
                 </View>
               )}
             </View>
-          </View>
 
-          {/* 6. Observaciones (picker) */}
-          <View style={formEquipmentStyle.section}>
-            <Text style={formEquipmentStyle.sectionTitle}>
-              📋 Observaciones
-            </Text>
-            <View style={formEquipmentStyle.inputGroup}>
-              <View
-                style={[
-                  formEquipmentStyle.pickerContainer,
-                  errors.observaciones && formEquipmentStyle.pickerError, // ✅ CORREGIDO
-                ]}
-              >
-                <Picker
-                  selectedValue={formData.observaciones}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, observaciones: value }))
-                  }
-                  style={formEquipmentStyle.picker}
-                  enabled={!loading && !isSaving}
+            <View style={formEquipmentStyle.section}>
+              <Text style={formEquipmentStyle.sectionTitle}>📌 Perfil</Text>
+              <View style={formEquipmentStyle.inputGroup}>
+                <View
+                  style={[
+                    formEquipmentStyle.pickerContainer,
+                    errors.perfil && formEquipmentStyle.pickerError,
+                  ]}
                 >
-                  <Picker.Item label="Selecciona una observación" value="" />
-                  {observacionesOpciones.map((obs) => (
-                    <Picker.Item key={obs} label={obs} value={obs} />
-                  ))}
-                </Picker>
-              </View>
-              {errors.observaciones && (
-                <View style={formEquipmentStyle.errorContainer}>
-                  <Ionicons
-                    name="alert-circle"
-                    size={14}
-                    color={COLORS.error}
-                  />
-                  <Text style={formEquipmentStyle.errorText}>
-                    {errors.observaciones}
-                  </Text>
+                  <Picker
+                    selectedValue={formData.perfil}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({ ...prev, perfil: value }))
+                    }
+                    style={formEquipmentStyle.picker}
+                    enabled={!loading && !isSaving}
+                  >
+                    {perfiles.map((perfil) => (
+                      <Picker.Item key={perfil} label={perfil} value={perfil} />
+                    ))}
+                  </Picker>
                 </View>
-              )}
+                {errors.perfil && (
+                  <View style={formEquipmentStyle.errorContainer}>
+                    <Ionicons
+                      name="alert-circle"
+                      size={14}
+                      color={COLORS.error}
+                    />
+                    <Text style={formEquipmentStyle.errorText}>
+                      {errors.perfil}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            <View style={formEquipmentStyle.section}>
+              <Text style={formEquipmentStyle.sectionTitle}>
+                📍 Ubicación Física
+              </Text>
+              <View style={formEquipmentStyle.inputGroup}>
+                <TextInput
+                  style={[
+                    formEquipmentStyle.input,
+                    errors.ubicacion && formEquipmentStyle.inputError,
+                  ]}
+                  value={formData.ubicacion}
+                  onChangeText={(text) => {
+                    buscarSugerencias(text);
+                    if (errors.ubicacion)
+                      setErrors((prev) => ({ ...prev, ubicacion: "" }));
+                  }}
+                  placeholder="Ej: Planta baja, oficina 101, bodega norte"
+                  placeholderTextColor="#999"
+                  editable={!loading && !isSaving}
+                />
+                {mostrarSugerencias && sugerencias.length > 0 && (
+                  <View style={formEquipmentStyle.sugerenciasContainer}>
+                    {sugerencias.map((item, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={formEquipmentStyle.sugerenciaItem}
+                        onPress={() => seleccionarSugerencia(item)}
+                      >
+                        <Ionicons
+                          name="location-outline"
+                          size={16}
+                          color={COLORS.primary}
+                        />
+                        <Text style={formEquipmentStyle.sugerenciaText}>
+                          {item}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+                {errors.ubicacion && (
+                  <View style={formEquipmentStyle.errorContainer}>
+                    <Ionicons
+                      name="alert-circle"
+                      size={14}
+                      color={COLORS.error}
+                    />
+                    <Text style={formEquipmentStyle.errorText}>
+                      {errors.ubicacion}
+                    </Text>
+                  </View>
+                )}
+                <Text style={formEquipmentStyle.helperText}>
+                  Especifica el lugar exacto donde se encuentra el equipo
+                </Text>
+              </View>
+            </View>
+
+            <View style={formEquipmentStyle.section}>
+              <Text style={formEquipmentStyle.sectionTitle}>
+                📝 Estado del Equipo
+              </Text>
+              <View style={formEquipmentStyle.inputGroup}>
+                <View
+                  style={[
+                    formEquipmentStyle.pickerContainer,
+                    errors.estado && formEquipmentStyle.pickerError,
+                  ]}
+                >
+                  <Picker
+                    selectedValue={formData.estado}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({ ...prev, estado: value }))
+                    }
+                    style={formEquipmentStyle.picker}
+                    enabled={!loading && !isSaving}
+                  >
+                    {estados.map((estado) => (
+                      <Picker.Item key={estado} label={estado} value={estado} />
+                    ))}
+                  </Picker>
+                </View>
+                {errors.estado && (
+                  <View style={formEquipmentStyle.errorContainer}>
+                    <Ionicons
+                      name="alert-circle"
+                      size={14}
+                      color={COLORS.error}
+                    />
+                    <Text style={formEquipmentStyle.errorText}>
+                      {errors.estado}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            <View style={formEquipmentStyle.section}>
+              <Text style={formEquipmentStyle.sectionTitle}>📄 Esquema</Text>
+              <View style={formEquipmentStyle.inputGroup}>
+                <View
+                  style={[
+                    formEquipmentStyle.pickerContainer,
+                    errors.esquema && formEquipmentStyle.pickerError,
+                  ]}
+                >
+                  <Picker
+                    selectedValue={formData.esquema}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({ ...prev, esquema: value }))
+                    }
+                    style={formEquipmentStyle.picker}
+                    enabled={!loading && !isSaving}
+                  >
+                    {esquemas.map((esquema) => (
+                      <Picker.Item
+                        key={esquema}
+                        label={esquema}
+                        value={esquema}
+                      />
+                    ))}
+                  </Picker>
+                </View>
+                {errors.esquema && (
+                  <View style={formEquipmentStyle.errorContainer}>
+                    <Ionicons
+                      name="alert-circle"
+                      size={14}
+                      color={COLORS.error}
+                    />
+                    <Text style={formEquipmentStyle.errorText}>
+                      {errors.esquema}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            <View style={formEquipmentStyle.section}>
+              <Text style={formEquipmentStyle.sectionTitle}>
+                📋 Observaciones
+              </Text>
+              <View style={formEquipmentStyle.inputGroup}>
+                <View
+                  style={[
+                    formEquipmentStyle.pickerContainer,
+                    errors.observaciones && formEquipmentStyle.pickerError,
+                  ]}
+                >
+                  <Picker
+                    selectedValue={formData.observaciones}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({ ...prev, observaciones: value }))
+                    }
+                    style={formEquipmentStyle.picker}
+                    enabled={!loading && !isSaving}
+                  >
+                    <Picker.Item label="Selecciona una observación" value="" />
+                    {observacionesOpciones.map((obs) => (
+                      <Picker.Item key={obs} label={obs} value={obs} />
+                    ))}
+                  </Picker>
+                </View>
+                {errors.observaciones && (
+                  <View style={formEquipmentStyle.errorContainer}>
+                    <Ionicons
+                      name="alert-circle"
+                      size={14}
+                      color={COLORS.error}
+                    />
+                    <Text style={formEquipmentStyle.errorText}>
+                      {errors.observaciones}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            <View style={formEquipmentStyle.section}>
+              <Text style={formEquipmentStyle.sectionTitle}>📝 Nota</Text>
+              <View style={formEquipmentStyle.inputGroup}>
+                <TextInput
+                  style={[
+                    formEquipmentStyle.input,
+                    formEquipmentStyle.textArea,
+                  ]}
+                  value={formData.nota}
+                  onChangeText={(text) =>
+                    setFormData((prev) => ({ ...prev, nota: text }))
+                  }
+                  placeholder="Nota adicional (opcional)"
+                  placeholderTextColor="#999"
+                  editable={!loading && !isSaving}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                />
+              </View>
+            </View>
+
+            <View style={formEquipmentStyle.actionButtons}>
+              <TouchableOpacity
+                style={[
+                  formEquipmentStyle.button,
+                  formEquipmentStyle.cancelButton,
+                ]}
+                onPress={() => router.back()}
+                disabled={loading || isSaving}
+              >
+                <Ionicons name="arrow-back" size={20} color={COLORS.text} />
+                <Text style={formEquipmentStyle.cancelButtonText}>
+                  {" "}
+                  Cancelar
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  formEquipmentStyle.button,
+                  formEquipmentStyle.submitButton,
+                  (loading || isSaving) && formEquipmentStyle.buttonDisabled,
+                ]}
+                onPress={handleSubmit}
+                disabled={loading || isSaving}
+              >
+                {loading || isSaving ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="save-outline" size={20} color="#fff" />
+                    <Text style={formEquipmentStyle.submitButtonText}>
+                      {" "}
+                      Registrar Equipo
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
-
-          {/* 7. Nota (texto libre) */}
-          <View style={formEquipmentStyle.section}>
-            <Text style={formEquipmentStyle.sectionTitle}>📝 Nota</Text>
-            <View style={formEquipmentStyle.inputGroup}>
-              <TextInput
-                style={[formEquipmentStyle.input, formEquipmentStyle.textArea]}
-                value={formData.nota}
-                onChangeText={(text) =>
-                  setFormData((prev) => ({ ...prev, nota: text }))
-                }
-                placeholder="Nota adicional (opcional)"
-                placeholderTextColor="#999"
-                editable={!loading && !isSaving}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-              />
-            </View>
-          </View>
-
-          {/* Botones de acción */}
-          <View style={formEquipmentStyle.actionButtons}>
-            <TouchableOpacity
-              style={[
-                formEquipmentStyle.button,
-                formEquipmentStyle.cancelButton,
-              ]}
-              onPress={() => router.back()}
-              disabled={loading || isSaving}
-            >
-              <Ionicons name="arrow-back" size={20} color={COLORS.text} />
-              <Text style={formEquipmentStyle.cancelButtonText}> Cancelar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                formEquipmentStyle.button,
-                formEquipmentStyle.submitButton,
-                (loading || isSaving) && formEquipmentStyle.buttonDisabled,
-              ]}
-              onPress={handleSubmit}
-              disabled={loading || isSaving}
-            >
-              {loading || isSaving ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <>
-                  <Ionicons name="save-outline" size={20} color="#fff" />
-                  <Text style={formEquipmentStyle.submitButtonText}>
-                    {" "}
-                    Registrar Equipo
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* ✅ MODAL DEL SCANNER */}
+        </ScrollView>
+      </KeyboardAvoidingView>
       <Modal
-        visible={showScanner}
+        visible={cameraModalVisible}
         animationType="slide"
         presentationStyle="fullScreen"
         statusBarTranslucent={true}
-        onRequestClose={closeScanner}
+        onRequestClose={closeCamera}
       >
-        <View style={formEquipmentStyle.scannerContainer}>
-          {/* HEADER */}
-          <View style={formEquipmentStyle.scannerHeader}>
+        <View style={styles.cameraModalContainer}>
+          <View style={styles.cameraHeader}>
             <TouchableOpacity
-              style={formEquipmentStyle.scannerBackButton}
-              onPress={closeScanner}
+              style={styles.cameraBackButton}
+              onPress={closeCamera}
+              disabled={cameraBusy}
             >
               <Ionicons name="close" size={28} color="#fff" />
             </TouchableOpacity>
-            <Text style={formEquipmentStyle.scannerTitle}>ESCANEAR CÓDIGO</Text>
-            <View style={{ width: 40 }} />
+            <Text style={styles.cameraTitle}>
+              {cameraMode === "scan" ? "ESCANEAR CÓDIGO" : "TOMAR FOTO"}
+            </Text>
+            {cameraMode === "photo" ? (
+              <TouchableOpacity
+                style={styles.flipCameraButton}
+                onPress={toggleCameraType}
+              >
+                <Ionicons
+                  name="camera-reverse-outline"
+                  size={24}
+                  color="#fff"
+                />
+              </TouchableOpacity>
+            ) : (
+              <View style={{ width: 40 }} />
+            )}
           </View>
 
-          {/* Camera Container - CameraView SIN hijos */}
-          {permission?.granted ? (
-            <View style={formEquipmentStyle.cameraContainer}>
-              {/* Solo CameraView, sin hijos */}
+          <View style={styles.cameraWrapper}>
+            {permission?.granted && cameraModalVisible ? (
               <CameraView
-                ref={scannerCameraRef}
+                ref={cameraRef}
                 style={StyleSheet.absoluteFillObject}
-                facing="back"
-                barcodeScannerSettings={{
-                  barcodeTypes: ["code128"],
-                  interval: 1000,
-                  regionOfInterest: regionOfInterest,
+                facing={cameraMode === "scan" ? "back" : cameraType}
+                onMountError={(error) => {
+                  console.error("Error montando la cámara:", error);
+                  Alert.alert(
+                    "Error de cámara",
+                    "No se pudo iniciar la cámara. Intenta de nuevo en unos segundos.",
+                  );
+                  closeCamera();
                 }}
-                onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+                {...(cameraMode === "scan"
+                  ? {
+                      barcodeScannerSettings: {
+                        barcodeTypes: ["code128"],
+                        interval: 1000,
+                        regionOfInterest,
+                      },
+                      onBarcodeScanned: scanned
+                        ? undefined
+                        : handleBarCodeScanned,
+                    }
+                  : {})}
               />
+            ) : (
+              <View style={styles.permissionContainer}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+                <Text style={styles.permissionText}>
+                  Verificando permisos...
+                </Text>
+              </View>
+            )}
 
-              {/* Overlay FUERA de CameraView - con posición absoluta */}
+            {cameraMode === "scan" && cameraModalVisible && (
               <View style={formEquipmentStyle.scannerOverlay}>
                 <View
                   style={[
@@ -1035,108 +1055,48 @@ export default function PcForm() {
                   />
                 </View>
               </View>
-            </View>
-          ) : (
-            <View style={styles.centered}>
-              <ActivityIndicator size="large" color={COLORS.primary} />
-              <Text style={styles.loadingText}>Verificando permisos...</Text>
+            )}
+          </View>
+
+          {cameraMode === "photo" && (
+            <View style={styles.cameraControls}>
+              <View style={styles.captureButtonContainer}>
+                <TouchableOpacity
+                  style={styles.captureButton}
+                  onPress={capturePhoto}
+                >
+                  <View style={styles.captureButtonInner} />
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
-          {/* FOOTER */}
-          <View style={formEquipmentStyle.scannerFooter}>
-            <Text style={formEquipmentStyle.scannerHint}>
-              {scanned
-                ? "Procesando código..."
-                : "El scanner se detendrá automáticamente al detectar un código"}
+          <View style={styles.cameraInstructions}>
+            <Text style={styles.instructionsText}>
+              {cameraMode === "scan"
+                ? scanned
+                  ? "Procesando código..."
+                  : "El scanner se detendrá automáticamente al detectar un código"
+                : "Toca el círculo blanco para tomar la foto"}
             </Text>
+          </View>
 
+          {cameraMode === "scan" && (
             <TouchableOpacity
               style={formEquipmentStyle.manualEntryButton}
-              onPress={closeScanner}
+              onPress={closeCamera}
             >
               <Text style={formEquipmentStyle.manualEntryText}>
                 Ingresar manualmente
               </Text>
             </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ✅ MODAL PARA TOMAR FOTO CON CÁMARA */}
-      <Modal
-        visible={showCameraModal}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        statusBarTranslucent={true}
-        onRequestClose={() => {
-          setShowCameraModal(false);
-          if (photoCameraRef.current) {
-            photoCameraRef.current = null;
-          }
-        }}
-      >
-        <View style={styles.cameraModalContainer}>
-          {/* HEADER */}
-          <View style={styles.cameraHeader}>
-            <TouchableOpacity
-              style={styles.cameraBackButton}
-              onPress={() => setShowCameraModal(false)}
-            >
-              <Ionicons name="close" size={28} color="#fff" />
-            </TouchableOpacity>
-            <Text style={styles.cameraTitle}>TOMAR FOTO</Text>
-            <TouchableOpacity
-              style={styles.flipCameraButton}
-              onPress={toggleCameraType}
-            >
-              <Ionicons name="camera-reverse-outline" size={24} color="#fff" />
-            </TouchableOpacity>
-          </View>
-
-          {/* CÁMARA */}
-          <View style={styles.cameraWrapper}>
-            {permission?.granted ? (
-              <CameraView
-                ref={photoCameraRef}
-                style={StyleSheet.absoluteFillObject}
-                facing={cameraType}
-              />
-            ) : (
-              <View style={styles.permissionContainer}>
-                <ActivityIndicator size="large" color={COLORS.primary} />
-                <Text style={styles.permissionText}>
-                  Verificando permisos...
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* CONTROLES */}
-          <View style={styles.cameraControls}>
-            <View style={styles.captureButtonContainer}>
-              <TouchableOpacity
-                style={styles.captureButton}
-                onPress={capturePhoto}
-              >
-                <View style={styles.captureButtonInner} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* INSTRUCCIONES */}
-          <View style={styles.cameraInstructions}>
-            <Text style={styles.instructionsText}>
-              Toca el círculo blanco para tomar la foto
-            </Text>
-          </View>
+          )}
         </View>
       </Modal>
     </>
   );
 }
 
-// ✅ ESTILOS
 const styles = StyleSheet.create({
   centered: {
     flex: 1,
@@ -1149,8 +1109,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
   },
-
-  // Estilos para el modal de cámara
   cameraModalContainer: {
     flex: 1,
     backgroundColor: "#000",
